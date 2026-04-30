@@ -1,0 +1,33 @@
+name: wolfcha
+
+services:
+  app:
+    build:
+      context: .
+      args:
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com}
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-https://wolfcha.openhubs.xyz}
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:-}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:-}
+        NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY: ${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY:-}
+        NEXT_PUBLIC_WATCHA_CLIENT_ID: ${NEXT_PUBLIC_WATCHA_CLIENT_ID:-}
+        NEXT_PUBLIC_SHOW_DEVTOOLS: ${NEXT_PUBLIC_SHOW_DEVTOOLS:-false}
+        SUPABASE_SERVICE_ROLE_KEY: build-service-role-key
+    env_file:
+      - ${WOLFCHA_ENV_FILE:-.env.production}
+    environment:
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: "1"
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-https://wolfcha.openhubs.xyz}
+      NEXT_PUBLIC_SHOW_DEVTOOLS: ${NEXT_PUBLIC_SHOW_DEVTOOLS:-false}
+      PORT: "7860"
+      HOSTNAME: "0.0.0.0"
+    ports:
+      - "127.0.0.1:7860:7860"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:7860/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s

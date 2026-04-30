@@ -102,3 +102,73 @@ jobs:
 
       - name: Deploy prebuilt output
         run: pnpm dlx vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN"
+
+  deploy-vps:
+    name: Deploy to VPS
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    env:
+      VPS_HOST: ${{ secrets.VPS_HOST }}
+      VPS_USER: ${{ secrets.VPS_USER }}
+      VPS_PASSWORD: ${{ secrets.VPS_PASSWORD }}
+      PRODUCTION_ENV_B64: ${{ secrets.PRODUCTION_ENV_B64 }}
+      APP_DIR: /opt/wolfcha
+      DOMAIN: wolfcha.openhubs.xyz
+      REPO_URL: https://github.com/${{ github.repository }}.git
+      SSH_OPTS: -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=20 -o ServerAliveCountMax=3 -o ConnectTimeout=30
+
+    steps:
+      - name: Validate deploy secrets
+        run: |
+          test -n "$VPS_HOST"
+          test -n "$VPS_USER"
+          test -n "$VPS_PASSWORD"
+          test -n "$PRODUCTION_ENV_B64"
+
+      - name: Install SSH client helpers
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y sshpass
+
+      - name: Prepare server checkout
+        run: |
+          TARGET="${VPS_USER}@${VPS_HOST}"
+          sshpass -p "$VPS_PASSWORD" ssh $SSH_OPTS "$TARGET" \
+            "APP_DIR='$APP_DIR' REPO_URL='$REPO_URL' GITHUB_SHA='$GITHUB_SHA' bash -s" <<'REMOTE'
+          set -euo pipefail
+          if ! command -v git >/dev/null 2>&1; then
+            apt-get update
+            apt-get install -y git
+          fi
+
+          if [ -d "$APP_DIR/.git" ]; then
+            cd "$APP_DIR"
+            git remote set-url origin "$REPO_URL"
+            git fetch --prune origin
+          else
+            rm -rf "$APP_DIR"
+            git clone "$REPO_URL" "$APP_DIR"
+            cd "$APP_DIR"
+          fi
+
+          git fetch origin "$GITHUB_SHA"
+          git checkout --force "$GITHUB_SHA"
+          git reset --hard "$GITHUB_SHA"
+          REMOTE
+
+      - name: Upload production environment
+        run: |
+          TARGET="${VPS_USER}@${VPS_HOST}"
+          printf '%s' "$PRODUCTION_ENV_B64" | sshpass -p "$VPS_PASSWORD" ssh $SSH_OPTS "$TARGET" \
+            "base64 -d > '$APP_DIR/.env.production' && chmod 600 '$APP_DIR/.env.production'"
+
+      - name: Deploy application
+        run: |
+          TARGET="${VPS_USER}@${VPS_HOST}"
+          sshpass -p "$VPS_PASSWORD" ssh $SSH_OPTS "$TARGET" \
+            "APP_DIR='$APP_DIR' DOMAIN='$DOMAIN' bash '$APP_DIR/scripts/deploy-vps.sh'"
+
+      - name: Verify public endpoint
+        run: curl -fsS --retry 5 --retry-delay 5 "https://${DOMAIN}/api/health"
