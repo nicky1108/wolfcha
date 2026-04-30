@@ -60,6 +60,7 @@ import type { SpringCampaignSnapshot } from "@/lib/spring-campaign";
 
 const GAME_CREDIT_PRICE_CNY = 1;
 const GAME_CREDIT_PRICE_LABEL = GAME_CREDIT_PRICE_CNY.toFixed(2);
+const OPENHUBS_URL = "https://openhubs.xyz";
  
  interface UserProfileModalProps {
    open: boolean;
@@ -751,8 +752,8 @@ const GAME_CREDIT_PRICE_LABEL = GAME_CREDIT_PRICE_CNY.toFixed(2);
                           {isValidatingZenmux ? t("customKey.validating") : validatedKeys.zenmux && validatedKeys.zenmux === zenmuxKey.trim() ? <Check size={16} className="text-[var(--color-success)]" /> : t("customKey.validate")}
                         </Button>
                       </div>
-                      <a href="https://zenmux.ai/invite/DMMBVZ" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 rounded-md border-2 border-[var(--color-accent)] bg-[var(--color-accent-bg)] px-2.5 py-2 transition-all hover:shadow-md">
-                        <img src="/sponsor/zenmux.png" alt="" className="h-6 w-6 shrink-0 rounded object-contain" />
+                      <a href={OPENHUBS_URL} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 rounded-md border-2 border-[var(--color-accent)] bg-[var(--color-accent-bg)] px-2.5 py-2 transition-all hover:shadow-md">
+                        <img src="/sponsor/openhubs.svg" alt="openHubs" className="h-6 w-6 shrink-0 rounded object-contain" />
                         <div className="min-w-0 flex-1">
                           <span className="text-xs font-medium text-[var(--text-primary)]">{t("customKey.zenmux.get")}</span>
                           <span className="text-[11px] text-[var(--text-muted)] ml-1.5">{t("customKey.zenmux.note")}</span>
@@ -822,7 +823,7 @@ const GAME_CREDIT_PRICE_LABEL = GAME_CREDIT_PRICE_CNY.toFixed(2);
                             <SelectTrigger id="generator-model"><SelectValue placeholder={t("customKey.selectModel")} /></SelectTrigger>
                             <SelectContent className="max-h-60">
                               {availableModelPool.map((r) => (
-                                <SelectItem key={`${r.provider}:${r.model}`} value={r.model} label={r.model} description={r.provider === "zenmux" ? "Zenmux" : t("customKey.dashscope.short")} icon={getModelLogoPath(r)} />
+                                <SelectItem key={`${r.provider}:${r.model}`} value={r.model} label={r.model} description={r.provider === "zenmux" ? t("customKey.zenmux.short") : t("customKey.dashscope.short")} icon={getModelLogoPath(r)} />
                               ))}
                             </SelectContent>
                           </Select>
@@ -836,7 +837,7 @@ const GAME_CREDIT_PRICE_LABEL = GAME_CREDIT_PRICE_CNY.toFixed(2);
                             <SelectTrigger id="summary-model"><SelectValue placeholder={t("customKey.selectModel")} /></SelectTrigger>
                             <SelectContent className="max-h-60">
                               {availableModelPool.map((r) => (
-                                <SelectItem key={`${r.provider}:${r.model}`} value={r.model} label={r.model} description={r.provider === "zenmux" ? "Zenmux" : t("customKey.dashscope.short")} icon={getModelLogoPath(r)} />
+                                <SelectItem key={`${r.provider}:${r.model}`} value={r.model} label={r.model} description={r.provider === "zenmux" ? t("customKey.zenmux.short") : t("customKey.dashscope.short")} icon={getModelLogoPath(r)} />
                               ))}
                             </SelectContent>
                           </Select>
@@ -850,7 +851,7 @@ const GAME_CREDIT_PRICE_LABEL = GAME_CREDIT_PRICE_CNY.toFixed(2);
                             <SelectTrigger id="review-model"><SelectValue placeholder={t("customKey.selectModel")} /></SelectTrigger>
                             <SelectContent className="max-h-60">
                               {availableModelPool.map((r) => (
-                                <SelectItem key={`${r.provider}:${r.model}`} value={r.model} label={r.model} description={r.provider === "zenmux" ? "Zenmux" : t("customKey.dashscope.short")} icon={getModelLogoPath(r)} />
+                                <SelectItem key={`${r.provider}:${r.model}`} value={r.model} label={r.model} description={r.provider === "zenmux" ? t("customKey.zenmux.short") : t("customKey.dashscope.short")} icon={getModelLogoPath(r)} />
                               ))}
                             </SelectContent>
                           </Select>
@@ -884,7 +885,7 @@ const GAME_CREDIT_PRICE_LABEL = GAME_CREDIT_PRICE_CNY.toFixed(2);
                               >
                                 <img src={getModelLogoPath(r)} alt="" className="h-4 w-4 shrink-0 rounded object-contain" />
                                 <span className="min-w-0 flex-1 truncate text-[var(--text-primary)]">{r.model}</span>
-                                <span className="shrink-0 text-xs text-[var(--text-muted)]">({r.provider === "zenmux" ? "Zenmux" : t("customKey.dashscope.short")})</span>
+                                <span className="shrink-0 text-xs text-[var(--text-muted)]">({r.provider === "zenmux" ? t("customKey.zenmux.short") : t("customKey.dashscope.short")})</span>
                               </DropdownMenuCheckboxItem>
                             ))}
                           </DropdownMenuContent>

@@ -74,7 +74,7 @@ async function validateZenmuxKey(apiKey: string): Promise<ValidationResult> {
         return {
           provider: "zenmux",
           valid: false,
-          error: "API Key 余额不足，请前往 zenmux.ai 充值",
+          error: "API Key 余额不足，请前往 openHubs 充值",
           errorCode: "insufficient_quota",
         };
       }

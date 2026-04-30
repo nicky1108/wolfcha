@@ -148,7 +148,7 @@
       },
       "keyExhausted": {
         "title": "API Key 余额已耗尽",
-        "description": "请前往对应平台（zenmux.ai 或阿里云百炼）充值后再开始游戏。"
+        "description": "请前往对应平台（openHubs 或阿里云百炼）充值后再开始游戏。"
       },
       "keyInvalid": {
         "title": "API Key 验证失败",
@@ -1978,7 +1978,7 @@
   "api": {
     "errors": {
       "batchNoStream": "批量请求不支持 stream=true",
-      "zenmuxKeyRequired": "此模型需要您提供 Zenmux API Key",
+      "zenmuxKeyRequired": "此模型需要您提供 openHubs API Key",
       "bailianKeyRequired": "此模型需要您提供百炼 API Key",
       "dashscopeNotConfigured": "服务器未配置 DASHSCOPE_API_KEY",
       "zenmuxNotConfigured": "服务器未配置 ZENMUX_API_KEY",
@@ -2165,15 +2165,16 @@
     "validate": "验证",
     "llmKey": {
       "title": "语言模型 Key",
-      "description": "至少配置 Zenmux 或百炼其一，用于对局与人物生成"
+      "description": "至少配置 openHubs 或百炼其一，用于对局与人物生成"
     },
     "zenmux": {
-      "label": "Zenmux API Key",
-      "placeholder": "请输入 Zenmux API Key",
-      "hide": "隐藏 Zenmux API Key",
-      "show": "显示 Zenmux API Key",
-      "get": "获取 Zenmux Key",
-      "note": "支持国内外大部分模型"
+      "label": "openHubs API Key",
+      "placeholder": "请输入 openHubs API Key",
+      "hide": "隐藏 openHubs API Key",
+      "show": "显示 openHubs API Key",
+      "get": "获取 openHubs Key",
+      "note": "openHubs 提供模型能力",
+      "short": "openHubs"
     },
     "dashscope": {
       "label": "百炼 API Key",
@@ -2216,7 +2217,7 @@
       "notValidated": "未通过验证，无法保存",
       "notValidatedDesc": "请先点击「验证配置」",
       "needLlmKey": "请至少配置一个 LLM Key",
-      "needLlmKeyDesc": "Zenmux 或百炼二选一即可",
+      "needLlmKeyDesc": "openHubs 或百炼二选一即可",
       "modelsAdjusted": "部分模型不可用，已自动调整",
       "modelsAdjustedDesc": "请检查所选模型与已配置的 Key 是否匹配",
       "saved": "已保存 API Key",

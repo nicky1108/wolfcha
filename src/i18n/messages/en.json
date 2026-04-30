@@ -148,7 +148,7 @@
       },
       "keyExhausted": {
         "title": "API Key balance exhausted",
-        "description": "Please top up at the respective platform (zenmux.ai or Alibaba Cloud Dashscope) before starting the game."
+        "description": "Please top up at the respective platform (openHubs or Alibaba Cloud Dashscope) before starting the game."
       },
       "keyInvalid": {
         "title": "API Key validation failed",
@@ -1896,7 +1896,7 @@
   "api": {
     "errors": {
       "batchNoStream": "Batch request does not support stream=true",
-      "zenmuxKeyRequired": "This model requires you to provide Zenmux API Key",
+      "zenmuxKeyRequired": "This model requires you to provide openHubs API Key",
       "bailianKeyRequired": "This model requires you to provide Dashscope API Key",
       "dashscopeNotConfigured": "DASHSCOPE_API_KEY not configured on server",
       "zenmuxNotConfigured": "ZENMUX_API_KEY not configured on server",
@@ -2083,15 +2083,16 @@
     "validate": "Validate",
     "llmKey": {
       "title": "Language Model Key",
-      "description": "Configure at least Zenmux or Dashscope for gameplay and character generation"
+      "description": "Configure at least openHubs or Dashscope for gameplay and character generation"
     },
     "zenmux": {
-      "label": "Zenmux API Key",
-      "placeholder": "Enter Zenmux API Key",
-      "hide": "Hide Zenmux API Key",
-      "show": "Show Zenmux API Key",
-      "get": "Get Zenmux Key",
-      "note": "Supports most domestic and international models"
+      "label": "openHubs API Key",
+      "placeholder": "Enter openHubs API Key",
+      "hide": "Hide openHubs API Key",
+      "show": "Show openHubs API Key",
+      "get": "Get openHubs Key",
+      "note": "openHubs provides model capabilities",
+      "short": "openHubs"
     },
     "dashscope": {
       "label": "Dashscope API Key",
@@ -2134,7 +2135,7 @@
       "notValidated": "Validation failed. Cannot save.",
       "notValidatedDesc": "Please click 'Validate' first.",
       "needLlmKey": "Please configure at least one LLM Key",
-      "needLlmKeyDesc": "Either Zenmux or Dashscope is required",
+      "needLlmKeyDesc": "Either openHubs or Dashscope is required",
       "modelsAdjusted": "Some models unavailable. Auto-adjusted.",
       "modelsAdjustedDesc": "Check if selected models match your configured keys.",
       "saved": "API Key saved",

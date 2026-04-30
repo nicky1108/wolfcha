@@ -227,7 +227,7 @@ async function runBatchItem(
   const isDefaultModel = PROJECT_MODELS.some((ref) => ref.model === model);
   if (!isDefaultModel) {
     if (modelProvider === "zenmux" && !headerApiKey) {
-      return { ok: false, status: 401, error: "此模型需要您提供 Zenmux API Key" };
+      return { ok: false, status: 401, error: "此模型需要您提供 openHubs API Key" };
     }
     if (modelProvider === "dashscope" && !headerDashscopeKey) {
       return { ok: false, status: 401, error: "此模型需要您提供百炼 API Key" };
@@ -410,7 +410,7 @@ async function runBatchItem(
   }
 
   if (hasAnyCustomKeyHeader && !headerApiKey) {
-    return { ok: false, status: 401, error: "已启用自定义 Key，但未提供 Zenmux API Key（已拒绝回退到系统 Key）" };
+    return { ok: false, status: 401, error: "已启用自定义 Key，但未提供 openHubs API Key（已拒绝回退到系统 Key）" };
   }
 
   const apiKey = headerApiKey || process.env.ZENMUX_API_KEY;
@@ -564,7 +564,7 @@ export async function POST(request: NextRequest) {
     if (!isDefaultModel) {
       if (modelProvider === "zenmux" && !headerApiKey) {
         return NextResponse.json(
-          { error: "此模型需要您提供 Zenmux API Key" },
+          { error: "此模型需要您提供 openHubs API Key" },
           { status: 401 }
         );
       }
@@ -774,7 +774,7 @@ export async function POST(request: NextRequest) {
 
     if (hasAnyCustomKeyHeader && !headerApiKey) {
       return NextResponse.json(
-        { error: "已启用自定义 Key，但未提供 Zenmux API Key（已拒绝回退到系统 Key）" },
+        { error: "已启用自定义 Key，但未提供 openHubs API Key（已拒绝回退到系统 Key）" },
         { status: 401 }
       );
     }

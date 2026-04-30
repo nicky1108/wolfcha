@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Button } from "@/components/ui/button";
 import { Key, CreditCard, Play } from "@phosphor-icons/react";
 
-const ZENMUX_URL = "https://zenmux.ai/aboutus?ref=wolfcha";
+const OPENHUBS_URL = "https://openhubs.xyz";
 const LOW_CREDIT_THRESHOLD = 3;
 
 interface LowCreditModalProps {
@@ -26,7 +26,7 @@ export function LowCreditModal({
   const t = useTranslations("lowCreditModal");
 
   const handleBuyApiKey = () => {
-    window.open(ZENMUX_URL, "_blank", "noopener,noreferrer");
+    window.open(OPENHUBS_URL, "_blank", "noopener,noreferrer");
   };
 
   const handleRecharge = () => {
