@@ -2,6 +2,7 @@ name: wolfcha
 
 services:
   app:
+    image: ${WOLFCHA_IMAGE:-ghcr.io/nicky1108/wolfcha:latest}
     build:
       context: .
       args:

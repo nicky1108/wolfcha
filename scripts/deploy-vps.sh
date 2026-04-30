@@ -8,6 +8,7 @@ CERT_ZIP="${CERT_ZIP:-/home/${DOMAIN}_nginx.zip}"
 CERT_DIR="${CERT_DIR:-/etc/nginx/ssl/${DOMAIN}}"
 NGINX_SITE="/etc/nginx/sites-available/${DOMAIN}"
 NGINX_LINK="/etc/nginx/sites-enabled/${DOMAIN}"
+WOLFCHA_IMAGE="${WOLFCHA_IMAGE:-}"
 
 log() {
   printf '[deploy] %s\n' "$*"
@@ -34,6 +35,20 @@ install_basic_packages() {
       apt-get install -y "${missing[@]}"
     fi
   fi
+}
+
+login_container_registry() {
+  if [ -z "${GHCR_TOKEN:-}" ]; then
+    return 0
+  fi
+
+  if [ -z "${GHCR_USERNAME:-}" ]; then
+    printf '[deploy] GHCR_TOKEN was provided but GHCR_USERNAME is missing\n' >&2
+    exit 1
+  fi
+
+  printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin >/dev/null
+  log "Logged in to ghcr.io"
 }
 
 install_certificate() {
@@ -118,7 +133,15 @@ start_application() {
     exit 1
   fi
 
-  nice -n 10 docker compose --env-file .env.production up -d --build --remove-orphans
+  if [ -n "$WOLFCHA_IMAGE" ]; then
+    export WOLFCHA_IMAGE
+    login_container_registry
+    docker compose --env-file .env.production pull app
+    docker compose --env-file .env.production up -d --no-build --remove-orphans app
+  else
+    nice -n 10 docker compose --env-file .env.production up -d --build --remove-orphans
+  fi
+
   log "Started Docker Compose service"
 }
 

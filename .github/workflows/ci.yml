@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: read
+  packages: write
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -118,14 +119,70 @@ jobs:
       DOMAIN: wolfcha.openhubs.xyz
       REPO_URL: https://github.com/${{ github.repository }}.git
       SSH_OPTS: -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=60 -o ServerAliveCountMax=5 -o ConnectTimeout=60
+      GHCR_USERNAME: ${{ github.repository_owner }}
+      GHCR_TOKEN: ${{ github.token }}
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Validate deploy secrets
         run: |
           test -n "$VPS_HOST"
           test -n "$VPS_USER"
           test -n "$VPS_PASSWORD"
           test -n "$PRODUCTION_ENV_B64"
+
+      - name: Decode production environment for image build
+        run: |
+          printf '%s' "$PRODUCTION_ENV_B64" | base64 -d > .env.production
+          while IFS='=' read -r key value; do
+            case "$key" in
+              NEXT_PUBLIC_APP_URL|NEXT_PUBLIC_SUPABASE_URL|NEXT_PUBLIC_SUPABASE_ANON_KEY|NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY|NEXT_PUBLIC_WATCHA_CLIENT_ID|NEXT_PUBLIC_SHOW_DEVTOOLS)
+                value="${value%$'\r'}"
+                printf '%s=%s\n' "$key" "$value" >> "$GITHUB_ENV"
+                ;;
+            esac
+          done < .env.production
+
+      - name: Set image metadata
+        run: |
+          IMAGE_REPO="ghcr.io/${GITHUB_REPOSITORY,,}"
+          {
+            printf 'IMAGE_REF=%s:%s\n' "$IMAGE_REPO" "$GITHUB_SHA"
+            printf 'IMAGE_LATEST=%s:latest\n' "$IMAGE_REPO"
+          } >> "$GITHUB_ENV"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ github.token }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.IMAGE_REF }}
+            ${{ env.IMAGE_LATEST }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          build-args: |
+            NPM_REGISTRY=https://registry.npmmirror.com
+            NEXT_PUBLIC_APP_URL=${{ env.NEXT_PUBLIC_APP_URL }}
+            NEXT_PUBLIC_SUPABASE_URL=${{ env.NEXT_PUBLIC_SUPABASE_URL }}
+            NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ env.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+            NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY=${{ env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY }}
+            NEXT_PUBLIC_WATCHA_CLIENT_ID=${{ env.NEXT_PUBLIC_WATCHA_CLIENT_ID }}
+            NEXT_PUBLIC_SHOW_DEVTOOLS=${{ env.NEXT_PUBLIC_SHOW_DEVTOOLS }}
+            SUPABASE_SERVICE_ROLE_KEY=build-service-role-key
 
       - name: Install SSH client helpers
         run: |
@@ -171,9 +228,11 @@ jobs:
       - name: Upload production environment
         run: |
           TARGET="${VPS_USER}@${VPS_HOST}"
+          cp .env.production .env.production.deploy
+          printf '\nWOLFCHA_IMAGE=%s\n' "$IMAGE_REF" >> .env.production.deploy
           for attempt in $(seq 1 10); do
-            if printf '%s' "$PRODUCTION_ENV_B64" | sshpass -p "$VPS_PASSWORD" ssh $SSH_OPTS "$TARGET" \
-              "base64 -d > '$APP_DIR/.env.production' && chmod 600 '$APP_DIR/.env.production'"
+            if sshpass -p "$VPS_PASSWORD" scp $SSH_OPTS .env.production.deploy "$TARGET:$APP_DIR/.env.production" &&
+              sshpass -p "$VPS_PASSWORD" ssh $SSH_OPTS "$TARGET" "chmod 600 '$APP_DIR/.env.production'"
             then
               exit 0
             fi
@@ -189,12 +248,13 @@ jobs:
           TARGET="${VPS_USER}@${VPS_HOST}"
           for attempt in $(seq 1 10); do
             if sshpass -p "$VPS_PASSWORD" ssh $SSH_OPTS "$TARGET" \
-              "APP_DIR='$APP_DIR' DOMAIN='$DOMAIN' bash -s" <<'REMOTE'
+              "APP_DIR='$APP_DIR' DOMAIN='$DOMAIN' WOLFCHA_IMAGE='$IMAGE_REF' GHCR_USERNAME='$GHCR_USERNAME' GHCR_TOKEN='$GHCR_TOKEN' bash -s" <<'REMOTE'
           set -euo pipefail
           LOG_FILE=/tmp/wolfcha-deploy.log
           EXIT_FILE=/tmp/wolfcha-deploy.exit
           rm -f "$LOG_FILE" "$EXIT_FILE"
-          nohup bash -lc "cd \"${APP_DIR}\" && APP_DIR=\"${APP_DIR}\" DOMAIN=\"${DOMAIN}\" bash scripts/deploy-vps.sh; printf '%s\n' \$? > \"${EXIT_FILE}\"" > "$LOG_FILE" 2>&1 &
+          export APP_DIR DOMAIN WOLFCHA_IMAGE GHCR_USERNAME GHCR_TOKEN LOG_FILE EXIT_FILE
+          nohup bash -lc 'cd "$APP_DIR" && bash scripts/deploy-vps.sh; status=$?; printf "%s\n" "$status" > "$EXIT_FILE"; exit "$status"' > "$LOG_FILE" 2>&1 &
           echo "VPS deploy started in background"
           REMOTE
             then
