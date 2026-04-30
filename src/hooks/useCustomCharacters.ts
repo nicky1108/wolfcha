@@ -6,6 +6,11 @@ import type { CustomCharacter, CustomCharacterInput } from "@/types/custom-chara
 import { DEFAULT_CUSTOM_CHARACTER_AGE, DEFAULT_CUSTOM_CHARACTER_GENDER, MAX_CUSTOM_CHARACTERS } from "@/types/custom-character";
 import type { User } from "@supabase/supabase-js";
 import { fillCustomCharacterOptionalFields } from "@/lib/custom-character-defaults";
+import {
+  buildCustomCharacterInsert,
+  isVisibleCustomCharacter,
+  normalizeCustomCharacterRow,
+} from "@/lib/custom-character-persistence";
 
 export function useCustomCharacters(user: User | null) {
   const [characters, setCharacters] = useState<CustomCharacter[]>([]);
@@ -26,11 +31,13 @@ export function useCustomCharacters(user: User | null) {
         .from("custom_characters")
         .select("*")
         .eq("user_id", user.id)
-        .eq("is_deleted", false)
         .order("created_at", { ascending: false });
 
       if (fetchError) throw fetchError;
-      setCharacters((data as CustomCharacter[]) ?? []);
+      const visibleRows = ((data as CustomCharacter[]) ?? [])
+        .filter(isVisibleCustomCharacter)
+        .map(normalizeCustomCharacterRow);
+      setCharacters(visibleRows);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to fetch characters");
     } finally {
@@ -51,26 +58,18 @@ export function useCustomCharacters(user: User | null) {
 
     try {
       const normalizedInput = fillCustomCharacterOptionalFields(input);
-      const avatarSeed = input.avatar_seed || `${input.display_name}-${Date.now()}`;
+      const displayName = normalizedInput.display_name.trim();
+      const avatarSeed = normalizedInput.avatar_seed?.trim() || `${displayName}-${Date.now()}`;
       
       const { data, error: insertError } = await supabase
         .from("custom_characters")
-        .insert({
-          user_id: user.id,
-          display_name: normalizedInput.display_name.trim(),
-          gender: normalizedInput.gender,
-          age: normalizedInput.age,
-          mbti: normalizedInput.mbti.toUpperCase(),
-          basic_info: normalizedInput.basic_info?.trim() || null,
-          style_label: normalizedInput.style_label?.trim() || null,
-          avatar_seed: avatarSeed,
-        } as never)
+        .insert(buildCustomCharacterInsert(user.id, normalizedInput, avatarSeed) as never)
         .select()
         .single();
 
       if (insertError) throw insertError;
       
-      const newChar = data as CustomCharacter;
+      const newChar = normalizeCustomCharacterRow(data as CustomCharacter);
       setCharacters(prev => [newChar, ...prev]);
       return newChar;
     } catch (err) {
@@ -125,7 +124,7 @@ export function useCustomCharacters(user: User | null) {
 
       if (updateError) throw updateError;
       
-      const updated = data as CustomCharacter;
+      const updated = normalizeCustomCharacterRow(data as CustomCharacter);
       setCharacters(prev => prev.map(c => c.id === id ? updated : c));
       return updated;
     } catch (err) {

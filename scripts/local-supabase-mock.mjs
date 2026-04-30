@@ -163,6 +163,13 @@ function wantsObject(req) {
   return String(req.headers.accept || "").includes("application/vnd.pgrst.object+json");
 }
 
+function tableInsertDefaults(table) {
+  if (table === "custom_characters") {
+    return { is_deleted: false };
+  }
+  return {};
+}
+
 function handleRest(req, res, url) {
   const table = decodeURIComponent(url.pathname.replace(/^\/rest\/v1\//, "").split("/")[0]);
   if (!table) return send(res, 404, { message: "Missing table" });
@@ -200,6 +207,7 @@ function handleRest(req, res, url) {
           id: item.id || randomUUID(),
           created_at: item.created_at || nowIso(),
           updated_at: item.updated_at || nowIso(),
+          ...tableInsertDefaults(table),
           ...item,
         };
         const existingIndex = rows.findIndex((row) => row.id === next.id);

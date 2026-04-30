@@ -955,18 +955,18 @@ export function CustomCharacterModal({
 
     {/* Detail Dialog */}
     <Dialog open={detailCharacter !== null} onOpenChange={(o) => { if (!o) setDetailCharacter(null); }}>
-      <DialogContent className="w-[92vw] max-w-lg max-h-[85vh] overflow-y-auto">
+      <DialogContent className="w-[94vw] max-w-4xl max-h-[88vh] overflow-y-auto overflow-x-hidden">
         {detailCharacter ? (
           <>
-            <DialogHeader>
-              <DialogTitle className="font-serif flex items-center gap-2">
+            <DialogHeader className="min-w-0">
+              <DialogTitle className="font-serif flex min-w-0 items-center gap-2">
                 <Eye size={18} weight="duotone" />
                 {t("customCharacter.detail.title")}
               </DialogTitle>
               <DialogDescription>{t("customCharacter.detail.description")}</DialogDescription>
             </DialogHeader>
 
-            <div className="rounded-xl border border-[var(--border-color)] bg-[var(--bg-card)] p-4">
+            <div className="min-w-0 rounded-xl border border-[var(--border-color)] bg-[var(--bg-card)] p-4">
               <div className="flex items-center gap-3">
                 <img
                   src={buildAvatarUrl({ seed: detailCharacter.avatar_seed || detailCharacter.display_name, gender: detailCharacter.gender })}
@@ -984,40 +984,40 @@ export function CustomCharacterModal({
               </div>
 
               <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
-                <div className="rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] p-2">
+                <div className="min-w-0 rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] p-2">
                   <div className="text-[11px] text-[var(--text-muted)]">{t("customCharacter.fields.gender")}</div>
                   <div className="font-medium text-[var(--text-primary)]">{genderLabels[detailCharacter.gender]}</div>
                 </div>
-                <div className="rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] p-2">
+                <div className="min-w-0 rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] p-2">
                   <div className="text-[11px] text-[var(--text-muted)]">{t("customCharacter.fields.age")}</div>
                   <div className="font-medium text-[var(--text-primary)]">{detailCharacter.age}</div>
                 </div>
-                <div className="rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] p-2">
+                <div className="min-w-0 rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] p-2">
                   <div className="text-[11px] text-[var(--text-muted)]">MBTI</div>
                   <div className="font-medium text-[var(--text-primary)]">{detailCharacter.mbti || t("customCharacter.mbtiNotSet")}</div>
                 </div>
-                <div className="rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] p-2">
+                <div className="min-w-0 rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] p-2">
                   <div className="text-[11px] text-[var(--text-muted)]">{t("customCharacter.fields.styleLabel")}</div>
-                  <div className="font-medium text-[var(--text-primary)] truncate">{detailCharacter.style_label || t("customCharacter.noInfo")}</div>
+                  <div className="font-medium text-[var(--text-primary)] break-words">{detailCharacter.style_label || t("customCharacter.noInfo")}</div>
                 </div>
               </div>
 
-              <div className="mt-3 rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] p-2">
+              <div className="mt-3 min-w-0 rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] p-2">
                 <div className="text-[11px] text-[var(--text-muted)]">{t("customCharacter.fields.basicInfo")}</div>
                 <div className="text-sm text-[var(--text-primary)] whitespace-pre-wrap break-words">
                   {detailCharacter.basic_info?.trim() ? detailCharacter.basic_info : t("customCharacter.noInfo")}
                 </div>
               </div>
 
-              <div className="mt-3 rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] p-2">
+              <div className="mt-3 min-w-0 rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] p-2">
                 <div className="text-[11px] text-[var(--text-muted)]">avatar_seed</div>
-                <div className="text-xs text-[var(--text-primary)] break-words font-mono">
+                <div className="break-all font-mono text-xs text-[var(--text-primary)]">
                   {detailCharacter.avatar_seed || t("customCharacter.noInfo")}
                 </div>
               </div>
             </div>
 
-            <div className="flex gap-2 pt-2">
+            <div className="flex min-w-0 gap-2 pt-2">
               <Button
                 type="button"
                 variant="outline"

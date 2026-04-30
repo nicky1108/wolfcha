@@ -108,6 +108,51 @@ export interface Database {
         };
         Relationships: [];
       };
+      custom_characters: {
+        Row: {
+          id: string;
+          user_id: string;
+          display_name: string;
+          gender: "male" | "female" | "nonbinary";
+          age: number;
+          mbti: string;
+          basic_info: string | null;
+          style_label: string | null;
+          avatar_seed: string | null;
+          is_deleted: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          display_name: string;
+          gender: "male" | "female" | "nonbinary";
+          age: number;
+          mbti?: string;
+          basic_info?: string | null;
+          style_label?: string | null;
+          avatar_seed?: string | null;
+          is_deleted?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          display_name?: string;
+          gender?: "male" | "female" | "nonbinary";
+          age?: number;
+          mbti?: string;
+          basic_info?: string | null;
+          style_label?: string | null;
+          avatar_seed?: string | null;
+          is_deleted?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       demo_config: {
         Row: {
           id: string;
