@@ -91,6 +91,11 @@ write_nginx_site() {
   fi
 
   cat > "$NGINX_CACHE_CONF" <<NGINX
+map \$http_accept_encoding \$wolfcha_static_encoding {
+    default "";
+    "~*gzip" "gzip";
+}
+
 proxy_cache_path ${NGINX_STATIC_CACHE_DIR} levels=1:2 keys_zone=wolfcha_static:50m max_size=512m inactive=365d use_temp_path=off;
 NGINX
 
@@ -121,9 +126,9 @@ server {
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_set_header Accept-Encoding \$http_accept_encoding;
+        proxy_set_header Accept-Encoding \$wolfcha_static_encoding;
         proxy_cache wolfcha_static;
-        proxy_cache_key "\$scheme|\$request_method|\$host|\$request_uri|\$http_accept_encoding";
+        proxy_cache_key "\$scheme|\$request_method|\$host|\$request_uri|\$wolfcha_static_encoding";
         proxy_cache_lock on;
         proxy_cache_revalidate on;
         proxy_cache_use_stale error timeout updating http_500 http_502 http_503 http_504;
@@ -162,7 +167,7 @@ warm_static_assets() {
   local page_tmp
   page_tmp="$(mktemp)"
 
-  if ! curl -fsS --compressed --resolve "${DOMAIN}:443:127.0.0.1" "https://${DOMAIN}/" -o "$page_tmp"; then
+  if ! curl -fsS --compressed -H "Accept-Encoding: gzip" --resolve "${DOMAIN}:443:127.0.0.1" "https://${DOMAIN}/" -o "$page_tmp"; then
     log "Static asset warmup skipped: could not fetch homepage"
     rm -f "$page_tmp"
     return 0
@@ -173,7 +178,7 @@ warm_static_assets() {
   while IFS= read -r asset; do
     [ -n "$asset" ] || continue
     url="https://${DOMAIN}${asset}"
-    if curl -fsS --compressed --resolve "${DOMAIN}:443:127.0.0.1" "$url" -o /dev/null; then
+    if curl -fsS --compressed -H "Accept-Encoding: gzip" --resolve "${DOMAIN}:443:127.0.0.1" "$url" -o /dev/null; then
       warmed=$((warmed + 1))
     else
       log "Static asset warmup missed: ${asset}"
