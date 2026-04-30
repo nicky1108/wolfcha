@@ -1,11 +1,9 @@
 import { NextResponse } from "next/server";
+import { INITIAL_SIGNUP_CREDITS, shouldCapLegacyInitialCredits } from "@/lib/credits-bootstrap-policy";
 import { ensureAdminClient, supabaseAdmin } from "@/lib/supabase-admin";
 import type { Database } from "@/types/database";
 
 export const dynamic = "force-dynamic";
-
-const INITIAL_SIGNUP_CREDITS = 10;
-const FRESH_ACCOUNT_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 function makeReferralCode(userId: string): string {
   return `USER${userId.replace(/-/g, "").slice(0, 10).toUpperCase()}`;
@@ -71,15 +69,7 @@ export async function POST(request: Request) {
   }
 
   const creditsRow = currentRow as Database["public"]["Tables"]["user_credits"]["Row"];
-  const userCreatedAtMs = new Date(user.created_at).getTime();
-  const isFreshAccount = Number.isFinite(userCreatedAtMs) && now.getTime() - userCreatedAtMs <= FRESH_ACCOUNT_WINDOW_MS;
-  const looksLikeInitialGrant =
-    creditsRow.credits > INITIAL_SIGNUP_CREDITS &&
-    !creditsRow.referred_by &&
-    creditsRow.total_referrals === 0 &&
-    !creditsRow.last_daily_bonus_at;
-
-  if (isFreshAccount && looksLikeInitialGrant) {
+  if (shouldCapLegacyInitialCredits({ userCreatedAt: user.created_at, row: creditsRow, now })) {
     const { data: updated, error: updateError } = await supabaseAdmin
       .from("user_credits")
       .update({
