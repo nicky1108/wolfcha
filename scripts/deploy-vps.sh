@@ -118,7 +118,7 @@ start_application() {
     exit 1
   fi
 
-  docker compose --env-file .env.production up -d --build --remove-orphans
+  nice -n 10 docker compose --env-file .env.production up -d --build --remove-orphans
   log "Started Docker Compose service"
 }
 

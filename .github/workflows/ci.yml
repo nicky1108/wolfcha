@@ -117,7 +117,7 @@ jobs:
       APP_DIR: /opt/wolfcha
       DOMAIN: wolfcha.openhubs.xyz
       REPO_URL: https://github.com/${{ github.repository }}.git
-      SSH_OPTS: -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=20 -o ServerAliveCountMax=3 -o ConnectTimeout=30
+      SSH_OPTS: -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=60 -o ServerAliveCountMax=5 -o ConnectTimeout=60
 
     steps:
       - name: Validate deploy secrets
@@ -135,8 +135,9 @@ jobs:
       - name: Prepare server checkout
         run: |
           TARGET="${VPS_USER}@${VPS_HOST}"
-          sshpass -p "$VPS_PASSWORD" ssh $SSH_OPTS "$TARGET" \
-            "APP_DIR='$APP_DIR' REPO_URL='$REPO_URL' GITHUB_SHA='$GITHUB_SHA' bash -s" <<'REMOTE'
+          for attempt in $(seq 1 10); do
+            if sshpass -p "$VPS_PASSWORD" ssh $SSH_OPTS "$TARGET" \
+              "APP_DIR='$APP_DIR' REPO_URL='$REPO_URL' GITHUB_SHA='$GITHUB_SHA' bash -s" <<'REMOTE'
           set -euo pipefail
           if ! command -v git >/dev/null 2>&1; then
             apt-get update
@@ -157,18 +158,38 @@ jobs:
           git checkout --force "$GITHUB_SHA"
           git reset --hard "$GITHUB_SHA"
           REMOTE
+            then
+              exit 0
+            fi
+
+            echo "SSH prepare failed (attempt ${attempt}/10); retrying."
+            sleep 20
+          done
+
+          exit 1
 
       - name: Upload production environment
         run: |
           TARGET="${VPS_USER}@${VPS_HOST}"
-          printf '%s' "$PRODUCTION_ENV_B64" | sshpass -p "$VPS_PASSWORD" ssh $SSH_OPTS "$TARGET" \
-            "base64 -d > '$APP_DIR/.env.production' && chmod 600 '$APP_DIR/.env.production'"
+          for attempt in $(seq 1 10); do
+            if printf '%s' "$PRODUCTION_ENV_B64" | sshpass -p "$VPS_PASSWORD" ssh $SSH_OPTS "$TARGET" \
+              "base64 -d > '$APP_DIR/.env.production' && chmod 600 '$APP_DIR/.env.production'"
+            then
+              exit 0
+            fi
+
+            echo "SSH env upload failed (attempt ${attempt}/10); retrying."
+            sleep 20
+          done
+
+          exit 1
 
       - name: Start VPS deploy
         run: |
           TARGET="${VPS_USER}@${VPS_HOST}"
-          sshpass -p "$VPS_PASSWORD" ssh $SSH_OPTS "$TARGET" \
-            "APP_DIR='$APP_DIR' DOMAIN='$DOMAIN' bash -s" <<'REMOTE'
+          for attempt in $(seq 1 10); do
+            if sshpass -p "$VPS_PASSWORD" ssh $SSH_OPTS "$TARGET" \
+              "APP_DIR='$APP_DIR' DOMAIN='$DOMAIN' bash -s" <<'REMOTE'
           set -euo pipefail
           LOG_FILE=/tmp/wolfcha-deploy.log
           EXIT_FILE=/tmp/wolfcha-deploy.exit
@@ -176,6 +197,15 @@ jobs:
           nohup bash -lc "cd \"${APP_DIR}\" && APP_DIR=\"${APP_DIR}\" DOMAIN=\"${DOMAIN}\" bash scripts/deploy-vps.sh; printf '%s\n' \$? > \"${EXIT_FILE}\"" > "$LOG_FILE" 2>&1 &
           echo "VPS deploy started in background"
           REMOTE
+            then
+              exit 0
+            fi
+
+            echo "SSH deploy start failed (attempt ${attempt}/10); retrying."
+            sleep 20
+          done
+
+          exit 1
 
       - name: Wait for VPS deploy
         run: |
