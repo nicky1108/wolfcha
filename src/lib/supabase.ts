@@ -40,6 +40,13 @@ type AuthResponse<T> = {
 };
 
 type AuthSubscriber = (event: AuthChangeEvent, session: Session | null) => void | Promise<void>;
+type OAuthProvider = "google" | "watcha";
+type OAuthSignInOptions = {
+  provider?: OAuthProvider | string;
+  options?: {
+    redirectTo?: string;
+  };
+};
 
 const subscribers = new Set<AuthSubscriber>();
 
@@ -232,11 +239,25 @@ export const supabase = {
       return parseAuthResponse<Record<string, unknown>>(response);
     },
 
-    async signInWithOAuth(options?: unknown) {
-      void options;
+    async signInWithOAuth(options?: OAuthSignInOptions) {
+      const provider = options?.provider;
+      const providerRoutes: Record<OAuthProvider, string> = {
+        google: "/api/auth/google",
+        watcha: "/api/auth/watcha",
+      };
+      if (provider === "google" || provider === "watcha") {
+        const url = providerRoutes[provider];
+        if (isBrowser()) {
+          window.location.assign(url);
+        }
+        return {
+          data: { provider, url },
+          error: null,
+        };
+      }
       return {
         data: { provider: null, url: null },
-        error: makeError("OAuth login is not configured for the self-hosted auth service"),
+        error: makeError("Unsupported OAuth provider"),
       };
     },
   },

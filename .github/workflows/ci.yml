@@ -137,7 +137,7 @@ jobs:
           printf '%s' "$PRODUCTION_ENV_B64" | base64 -d > .env.production
           while IFS='=' read -r key value; do
             case "$key" in
-              NEXT_PUBLIC_APP_URL|NEXT_PUBLIC_WATCHA_CLIENT_ID|NEXT_PUBLIC_SHOW_DEVTOOLS)
+              NEXT_PUBLIC_APP_URL|NEXT_PUBLIC_WATCHA_CLIENT_ID|NEXT_PUBLIC_GOOGLE_CLIENT_ID|NEXT_PUBLIC_SHOW_DEVTOOLS)
                 value="${value%$'\r'}"
                 printf '%s=%s\n' "$key" "$value" >> "$GITHUB_ENV"
                 ;;
@@ -177,6 +177,7 @@ jobs:
             NPM_REGISTRY=https://registry.npmmirror.com
             NEXT_PUBLIC_APP_URL=${{ env.NEXT_PUBLIC_APP_URL }}
             NEXT_PUBLIC_WATCHA_CLIENT_ID=${{ env.NEXT_PUBLIC_WATCHA_CLIENT_ID }}
+            NEXT_PUBLIC_GOOGLE_CLIENT_ID=${{ env.NEXT_PUBLIC_GOOGLE_CLIENT_ID }}
             NEXT_PUBLIC_SHOW_DEVTOOLS=${{ env.NEXT_PUBLIC_SHOW_DEVTOOLS }}
 
       - name: Install SSH client helpers

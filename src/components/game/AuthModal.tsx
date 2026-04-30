@@ -29,6 +29,9 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
   const t = useTranslations();
   const EMAIL_SEND_COOLDOWN_SECONDS = 60;
   const EMAIL_SEND_COOLDOWN_STORAGE_KEY = "wolfcha_auth_email_cooldown_until";
+  const isWatchaLoginEnabled = Boolean(process.env.NEXT_PUBLIC_WATCHA_CLIENT_ID);
+  const isGoogleLoginEnabled = Boolean(process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID);
+  const showOauthLogin = isWatchaLoginEnabled || isGoogleLoginEnabled;
 
   const [passwordView, setPasswordView] = useState<PasswordView>("sign_in");
   
@@ -246,6 +249,20 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
     }
   };
 
+  const handleGoogleSignIn = async () => {
+    setLoading(true);
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: window.location.origin,
+      },
+    });
+    if (error) {
+      setLoading(false);
+      toast.error(translateAuthError(error.message));
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={(isOpen) => {
       onOpenChange(isOpen);
@@ -262,9 +279,9 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
 
         <div className="pt-4">
           {/* OAuth 登录 */}
-          {passwordView === "sign_in" && (
+          {passwordView === "sign_in" && showOauthLogin && (
             <div className="pb-4">
-              {process.env.NEXT_PUBLIC_WATCHA_CLIENT_ID && (
+              {isWatchaLoginEnabled && (
                 <a href="/api/auth/watcha" className="block mb-3">
                   <Button
                     type="button"
@@ -282,25 +299,13 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
                 </a>
               )}
 
-              <div
-                onClick={async () => {
-                  const { error } = await supabase.auth.signInWithOAuth({
-                    provider: "google",
-                    options: {
-                      redirectTo: window.location.origin,
-                    },
-                  });
-                  if (error) {
-                    toast.error(translateAuthError(error.message));
-                  }
-                }}
-                className="block w-full cursor-pointer"
-              >
+              {isGoogleLoginEnabled && (
                 <Button
                   type="button"
                   variant="outline"
-                  className="w-full flex items-center justify-center gap-2 pointer-events-none"
+                  className="w-full flex items-center justify-center gap-2"
                   disabled={loading}
+                  onClick={handleGoogleSignIn}
                 >
                   <svg className="h-5 w-5" viewBox="0 0 24 24">
                     <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -310,7 +315,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
                   </svg>
                   {t("authModal.actions.signInWithGoogle")}
                 </Button>
-              </div>
+              )}
 
               <div className="relative my-6">
                 <div className="absolute inset-0 flex items-center">
