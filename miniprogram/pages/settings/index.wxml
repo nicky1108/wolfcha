@@ -1,0 +1,94 @@
+<view class="page safe-area">
+  <view class="panel">
+    <view class="panel-title">后端连接</view>
+    <view class="muted small section">开发时可填 http://localhost:3000；真机和上线需要 HTTPS 域名。</view>
+
+    <view class="field">
+      <view class="field-label">API Base URL</view>
+      <input class="field-control" value="{{apiBaseUrl}}" bindinput="onApiBaseUrlInput" placeholder="https://example.com" />
+    </view>
+
+    <view class="field">
+      <view class="field-label">H5 URL</view>
+      <input class="field-control" value="{{h5Url}}" bindinput="onH5UrlInput" placeholder="https://example.com" />
+    </view>
+
+    <view class="wc-button section {{checking ? 'disabled' : ''}}" hover-class="pressed" bindtap="checkBackend">{{checking ? "检查中" : "检查连接"}}</view>
+    <view class="wc-button secondary section" hover-class="pressed" bindtap="openH5">打开 H5 完整版</view>
+  </view>
+
+  <view class="panel section">
+    <view class="panel-title">AI 接口</view>
+    <view class="muted small section">小程序会通过后端代理调用同一套模型接口；未填 Key 时使用服务端内置配置和访客身份。</view>
+
+    <view class="field">
+      <view class="field-label">Provider</view>
+      <picker range="{{aiProviderLabels}}" value="{{aiProviderIndex}}" bindchange="onProviderChange">
+        <view class="field-control">{{aiProviderLabels[aiProviderIndex]}}</view>
+      </picker>
+    </view>
+
+    <view class="field">
+      <view class="field-label">模型</view>
+      <picker range="{{aiModels}}" value="{{aiModelIndex}}" bindchange="onModelChange">
+        <view class="field-control">{{aiModel}}</view>
+      </picker>
+    </view>
+
+    <view class="field">
+      <view class="field-label">ZenMux API Key</view>
+      <input class="field-control" password value="{{zenmuxApiKey}}" data-key="zenmuxApiKey" bindinput="onTextInput" placeholder="可选" />
+    </view>
+
+    <view class="field">
+      <view class="field-label">DashScope API Key</view>
+      <input class="field-control" password value="{{dashscopeApiKey}}" data-key="dashscopeApiKey" bindinput="onTextInput" placeholder="可选" />
+    </view>
+
+    <view class="field">
+      <view class="field-label">TokenDance API Key</view>
+      <input class="field-control" password value="{{tokendanceApiKey}}" data-key="tokendanceApiKey" bindinput="onTextInput" placeholder="可选" />
+    </view>
+
+    <view class="field">
+      <view class="field-label">TokenDance Base URL</view>
+      <input class="field-control" value="{{tokendanceBaseUrl}}" data-key="tokendanceBaseUrl" bindinput="onTextInput" placeholder="https://example.com/v1" />
+    </view>
+  </view>
+
+  <view class="panel section">
+    <view class="panel-title">体验选项</view>
+
+    <view class="setting-row">
+      <view>
+        <view class="setting-title">音效</view>
+        <view class="muted small">保留移动端音频开关状态。</view>
+      </view>
+      <view class="wc-toggle {{soundEnabled ? 'on' : ''}}" data-key="soundEnabled" bindtap="toggleSetting">
+        <view class="wc-toggle-knob"></view>
+      </view>
+    </view>
+
+    <view class="setting-row">
+      <view>
+        <view class="setting-title">AI 语音</view>
+        <view class="muted small">后续接入 TTS 接口时使用。</view>
+      </view>
+      <view class="wc-toggle {{aiVoiceEnabled ? 'on' : ''}}" data-key="aiVoiceEnabled" bindtap="toggleSetting">
+        <view class="wc-toggle-knob"></view>
+      </view>
+    </view>
+
+    <view class="setting-row">
+      <view>
+        <view class="setting-title">自动推进对话</view>
+        <view class="muted small">用于移动端游戏桌面的节奏控制。</view>
+      </view>
+      <view class="wc-toggle {{autoAdvanceDialogueEnabled ? 'on' : ''}}" data-key="autoAdvanceDialogueEnabled" bindtap="toggleSetting">
+        <view class="wc-toggle-knob"></view>
+      </view>
+    </view>
+
+    <view class="wc-button section" hover-class="pressed" bindtap="save">保存设置</view>
+  </view>
+</view>

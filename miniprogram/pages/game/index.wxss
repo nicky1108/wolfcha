@@ -1,0 +1,245 @@
+.table-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24rpx;
+  padding-top: 18rpx;
+}
+
+.head-copy {
+  min-width: 0;
+}
+
+.eyebrow {
+  color: #8c7335;
+  font-size: 24rpx;
+  font-weight: 700;
+}
+
+.title {
+  margin-top: 4rpx;
+  color: #3d2e24;
+  font-size: 46rpx;
+  font-weight: 900;
+}
+
+.compact {
+  width: 132rpx;
+  min-height: 68rpx;
+  font-size: 24rpx;
+  flex-shrink: 0;
+}
+
+.phase-panel {
+  overflow: hidden;
+}
+
+.phase-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20rpx;
+}
+
+.phase-hint {
+  margin-top: 8rpx;
+  line-height: 1.45;
+}
+
+.phase-badge {
+  min-height: 52rpx;
+  border-radius: 999rpx;
+  background: #8a1c1c;
+  color: #f0e6d2;
+  font-size: 22rpx;
+  font-weight: 800;
+  padding: 10rpx 18rpx;
+  white-space: nowrap;
+}
+
+.status-grid {
+  display: flex;
+  gap: 12rpx;
+  flex-wrap: wrap;
+}
+
+.status-cell {
+  width: 31%;
+  min-height: 104rpx;
+  border: 2rpx solid rgba(140, 115, 53, 0.18);
+  border-radius: 12rpx;
+  background: rgba(252, 250, 245, 0.76);
+  padding: 14rpx;
+}
+
+.status-label {
+  color: #9c8570;
+  font-size: 21rpx;
+}
+
+.status-value {
+  margin-top: 8rpx;
+  color: #3d2e24;
+  font-size: 25rpx;
+  font-weight: 800;
+  line-height: 1.25;
+  word-break: break-all;
+}
+
+.target-panel {
+  border-top: 2rpx solid rgba(140, 115, 53, 0.12);
+  padding-top: 20rpx;
+}
+
+.target-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+}
+
+.target-chip {
+  width: 31%;
+  min-height: 64rpx;
+  border: 2rpx solid rgba(140, 115, 53, 0.22);
+  border-radius: 12rpx;
+  background: rgba(255, 255, 255, 0.78);
+  color: #5c4a3d;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: 23rpx;
+  padding: 8rpx;
+}
+
+.target-chip.selected {
+  border-color: rgba(138, 28, 28, 0.48);
+  background: rgba(185, 54, 54, 0.13);
+  color: #8a1c1c;
+  font-weight: 800;
+}
+
+.action-row {
+  flex-wrap: wrap;
+}
+
+.action-row .wc-button {
+  flex: 1;
+  min-width: 180rpx;
+  padding: 0 12rpx;
+  font-size: 24rpx;
+}
+
+.warn-text {
+  color: #8a1c1c;
+  font-size: 24rpx;
+  line-height: 1.45;
+  word-break: break-all;
+}
+
+.seat-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+}
+
+.seat-card {
+  position: relative;
+  width: 31%;
+  min-height: 148rpx;
+  border: 2rpx solid rgba(140, 115, 53, 0.20);
+  border-radius: 14rpx;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.92), rgba(248, 245, 238, 0.96));
+  padding: 18rpx;
+  overflow: hidden;
+}
+
+.seat-card.wolf {
+  border-color: rgba(138, 28, 28, 0.24);
+  background: #f5e6e6;
+}
+
+.seat-card.dead {
+  opacity: 0.48;
+}
+
+.seat-card.active {
+  border-color: rgba(197, 160, 89, 0.64);
+  box-shadow: inset 0 0 0 2rpx rgba(197, 160, 89, 0.18);
+}
+
+.seat-card.selected {
+  border-color: rgba(138, 28, 28, 0.48);
+}
+
+.seat-number {
+  color: #8c7335;
+  font-size: 22rpx;
+  font-weight: 800;
+}
+
+.seat-name {
+  margin-top: 12rpx;
+  color: #3d2e24;
+  font-size: 28rpx;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.seat-role {
+  margin-top: 8rpx;
+  color: #9c8570;
+  font-size: 22rpx;
+  line-height: 1.35;
+}
+
+.message-list {
+  height: 460rpx;
+}
+
+.message {
+  border-radius: 14rpx;
+  border: 2rpx solid rgba(197, 160, 89, 0.20);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(252, 250, 245, 0.98));
+  padding: 18rpx;
+  margin-bottom: 14rpx;
+}
+
+.message.system {
+  background: rgba(197, 160, 89, 0.15);
+}
+
+.message.human {
+  border-color: rgba(138, 28, 28, 0.20);
+  background: rgba(245, 230, 230, 0.72);
+}
+
+.message-speaker {
+  color: #8c7335;
+  font-size: 24rpx;
+  font-weight: 800;
+}
+
+.message-content {
+  margin-top: 8rpx;
+  color: #3d2e24;
+  font-size: 27rpx;
+  line-height: 1.55;
+  word-break: break-all;
+}
+
+.speech-box {
+  height: 160rpx;
+  line-height: 1.5;
+}
+
+.button-row {
+  flex-wrap: wrap;
+}
+
+.button-row .wc-button {
+  flex: 1;
+  min-width: 240rpx;
+}

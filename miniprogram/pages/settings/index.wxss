@@ -1,0 +1,48 @@
+.setting-row {
+  min-height: 104rpx;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24rpx;
+  border-bottom: 2rpx solid rgba(244, 239, 230, 0.08);
+  padding: 20rpx 0;
+}
+
+.setting-row:last-of-type {
+  border-bottom: 0;
+}
+
+.setting-title {
+  color: #3d2e24;
+  font-size: 28rpx;
+  font-weight: 700;
+}
+
+.wc-toggle {
+  width: 104rpx;
+  height: 56rpx;
+  border: 2rpx solid rgba(140, 115, 53, 0.28);
+  border-radius: 999rpx;
+  background: rgba(235, 228, 212, 0.86);
+  padding: 5rpx;
+  transition: background 0.18s ease, border-color 0.18s ease;
+}
+
+.wc-toggle.on {
+  border-color: rgba(138, 28, 28, 0.36);
+  background: rgba(185, 54, 54, 0.18);
+}
+
+.wc-toggle-knob {
+  width: 42rpx;
+  height: 42rpx;
+  border-radius: 999rpx;
+  background: #fffdf8;
+  box-shadow: 0 5rpx 14rpx rgba(61, 46, 36, 0.18);
+  transition: transform 0.18s ease;
+}
+
+.wc-toggle.on .wc-toggle-knob {
+  transform: translateX(46rpx);
+  background: #8a1c1c;
+}

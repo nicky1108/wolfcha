@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { cookies, headers } from "next/headers";
 import "./globals.css";
 import { Toaster } from "sonner";
-import { Analytics } from "@vercel/analytics/next"
+import { Analytics } from "@vercel/analytics/next";
 import { I18nProvider } from "@/i18n/I18nProvider";
 import { STORAGE_KEY, defaultLocale, isSupportedLocale, localeToHtmlLang, type AppLocale } from "@/i18n/config";
 import { getMessages } from "@/i18n/messages";
@@ -91,6 +91,11 @@ function resolveInitialLocale(pathname: string | null, cookieLocale: string | un
   return defaultLocale;
 }
 
+function shouldEnableVercelAnalytics(): boolean {
+  // Vercel Analytics depends on Vercel's platform route at /_vercel/insights.
+  return process.env.VERCEL === "1" || process.env.ENABLE_VERCEL_ANALYTICS === "true";
+}
+
 export default async function RootLayout({
   children,
 }: Readonly<{
@@ -102,10 +107,10 @@ export default async function RootLayout({
     requestHeaders.get("x-wolfcha-pathname"),
     cookieStore.get(STORAGE_KEY)?.value
   );
+  const enableVercelAnalytics = shouldEnableVercelAnalytics();
 
   return (
     <html lang={localeToHtmlLang[initialLocale]} suppressHydrationWarning>
-      <Analytics />
       <body className="antialiased">
         <JsonLd data={getWebsiteJsonLd()} />
         <JsonLd data={getGameJsonLd()} />
@@ -114,6 +119,7 @@ export default async function RootLayout({
           <Toaster position="top-center" closeButton />
           {children}
         </I18nProvider>
+        {enableVercelAnalytics ? <Analytics /> : null}
       </body>
     </html>
   );

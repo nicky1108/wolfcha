@@ -1,0 +1,89 @@
+<view class="page safe-area" wx:if="{{game}}">
+  <view class="table-head">
+    <view class="head-copy">
+      <view class="eyebrow">第 {{game.day}} 天</view>
+      <view class="title">{{game.phase.label}}</view>
+      <view class="muted small">难度：{{game.difficulty}} · {{game.playerCount}} 人局</view>
+    </view>
+    <view class="wc-button compact secondary" hover-class="pressed" bindtap="restart">退出</view>
+  </view>
+
+  <view class="panel section phase-panel">
+    <view class="phase-row">
+      <view>
+        <view class="panel-title">当前流程</view>
+        <view class="muted small phase-hint">{{game.actionHint}}</view>
+      </view>
+      <view class="phase-badge" wx:if="{{game.winner}}">{{game.winner === "wolf" ? "狼人胜利" : "好人胜利"}}</view>
+    </view>
+
+    <view class="status-grid section">
+      <view class="status-cell">
+        <view class="status-label">当前发言</view>
+        <view class="status-value">{{game.currentSpeakerName}}</view>
+      </view>
+      <view class="status-cell">
+        <view class="status-label">AI 行动</view>
+        <view class="status-value">{{game.currentAiPlayerName || "等待玩家"}}</view>
+      </view>
+      <view class="status-cell">
+        <view class="status-label">目标</view>
+        <view class="status-value">{{game.selectedTargetName}}</view>
+      </view>
+    </view>
+
+    <view class="target-panel section" wx:if="{{game.needsTarget}}">
+      <view class="field-label">选择目标</view>
+      <view class="target-grid">
+        <view wx:for="{{game.targetPlayers}}" wx:key="playerId" class="target-chip {{item.selected ? 'selected' : ''}}" data-id="{{item.playerId}}" bindtap="selectTarget">
+          {{item.seat}}号 {{item.displayName}}
+        </view>
+      </view>
+    </view>
+
+    <view class="button-row section action-row">
+      <view class="wc-button secondary {{loadingAi || !game.canAiSpeak ? 'disabled' : ''}}" hover-class="pressed" bindtap="generateAiSpeech">{{loadingAi ? "AI 思考中" : "AI 发言"}}</view>
+      <view class="wc-button secondary {{!game.canResolvePhase ? 'disabled' : ''}}" hover-class="pressed" bindtap="resolvePhase">结算当前</view>
+      <view class="wc-button" hover-class="pressed" bindtap="nextPhase">{{game.primaryActionText}}</view>
+    </view>
+
+    <view class="warn-text section" wx:if="{{sessionWarning}}">{{sessionWarning}}</view>
+    <view class="warn-text section" wx:if="{{aiError}}">{{aiError}}</view>
+  </view>
+
+  <view class="panel section">
+    <view class="panel-title">身份配置</view>
+    <view class="role-grid section">
+      <view wx:for="{{game.roleSummary}}" wx:key="role" class="role-chip {{item.className}}">
+        {{item.label}} x{{item.count}}
+      </view>
+    </view>
+  </view>
+
+  <view class="panel section">
+    <view class="panel-title">玩家席位</view>
+    <view class="seat-grid section">
+      <view wx:for="{{game.players}}" wx:key="playerId" class="seat-card {{item.className}}">
+        <view class="seat-number">{{item.seat}} 号</view>
+        <view class="seat-name">{{item.displayName}}</view>
+        <view class="seat-role">{{item.seatRoleText}} · {{item.statusText}}</view>
+      </view>
+    </view>
+  </view>
+
+  <view class="panel section">
+    <view class="panel-title">发言区</view>
+    <scroll-view class="message-list section" scroll-y>
+      <view wx:for="{{game.messages}}" wx:key="id" class="message {{item.type}}">
+        <view class="message-speaker">{{item.speaker}}</view>
+        <view class="message-content">{{item.content}}</view>
+      </view>
+    </scroll-view>
+
+    <textarea class="field-control speech-box section" value="{{speechDraft}}" bindinput="onSpeechInput" placeholder="轮到你时输入发言" />
+    <view class="button-row section">
+      <view class="wc-button secondary" hover-class="pressed" bindtap="generateAiSpeech">让当前 AI 发言</view>
+      <view class="wc-button" hover-class="pressed" bindtap="submitSpeech">发表我的发言</view>
+    </view>
+  </view>
+</view>

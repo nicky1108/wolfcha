@@ -1,0 +1,18 @@
+{
+  "pages": [
+    "pages/h5/index",
+    "pages/home/index",
+    "pages/custom-characters/index",
+    "pages/game/index",
+    "pages/settings/index"
+  ],
+  "window": {
+    "navigationBarTitleText": "Wolfcha",
+    "navigationBarBackgroundColor": "#131722",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#0f121a",
+    "backgroundTextStyle": "light"
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json"
+}

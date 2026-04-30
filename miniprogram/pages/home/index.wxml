@@ -1,0 +1,53 @@
+<view class="page safe-area">
+  <view class="hero">
+    <view class="brand-mark">W</view>
+    <view class="hero-copy">
+      <view class="eyebrow">AI 社交推理</view>
+      <view class="title">Wolfcha 狼人杀</view>
+      <view class="subtitle">默认打开原 H5 完整版；原生页保留为业务域名未配置时的兜底。</view>
+    </view>
+  </view>
+
+  <view class="panel section">
+    <view class="panel-title">开局设置</view>
+
+    <view class="field">
+      <view class="field-label">人数</view>
+      <picker range="{{playerCounts}}" value="{{playerCountIndex}}" bindchange="onPlayerCountChange">
+        <view class="field-control">{{playerCounts[playerCountIndex]}} 人局</view>
+      </picker>
+    </view>
+
+    <view class="field">
+      <view class="field-label">难度</view>
+      <picker range="{{difficulties}}" range-key="label" value="{{difficultyIndex}}" bindchange="onDifficultyChange">
+        <view class="field-control">{{difficulties[difficultyIndex].label}}</view>
+      </picker>
+    </view>
+
+    <view class="field">
+      <view class="field-label">偏好身份</view>
+      <picker range="{{preferredRoleLabels}}" value="{{preferredRoleIndex}}" bindchange="onPreferredRoleChange">
+        <view class="field-control">{{preferredRoleText}}</view>
+      </picker>
+    </view>
+
+    <view class="role-grid section">
+      <view wx:for="{{roleSummary}}" wx:key="role" class="role-chip {{item.className}}">
+        {{item.label}} x{{item.count}}
+      </view>
+    </view>
+  </view>
+
+  <view class="panel section">
+    <view class="panel-title">自定义角色</view>
+    <view class="muted small section">已选择 {{selectedCustomCount}} 个角色。小程序版本先使用本地存储，后续可接入用户账号和云端同步。</view>
+    <view class="wc-button secondary section" hover-class="pressed" bindtap="openCustomCharacters">管理角色</view>
+  </view>
+
+  <view class="button-row section">
+    <view class="wc-button secondary" hover-class="pressed" bindtap="openSettings">设置</view>
+    <view class="wc-button secondary" hover-class="pressed" bindtap="startGame">原生兜底</view>
+    <view class="wc-button" hover-class="pressed" bindtap="openH5">H5 完整版</view>
+  </view>
+</view>

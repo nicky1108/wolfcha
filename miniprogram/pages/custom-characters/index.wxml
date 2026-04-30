@@ -1,0 +1,103 @@
+<view class="page safe-area">
+  <block wx:if="{{isListMode}}">
+    <view class="panel">
+      <view class="list-head">
+        <view>
+          <view class="panel-title">自定义角色</view>
+          <view class="muted small">选择的角色会优先进入 AI 席位。</view>
+        </view>
+        <view class="wc-button compact" hover-class="pressed" bindtap="create">新增</view>
+      </view>
+    </view>
+
+    <view class="empty panel section" wx:if="{{isEmpty}}">
+      <view class="muted">还没有自定义角色。</view>
+      <view class="wc-button section" hover-class="pressed" bindtap="create">创建第一个角色</view>
+    </view>
+
+    <view wx:for="{{characters}}" wx:key="id" class="character-card panel section">
+      <view class="character-main">
+        <view class="avatar">{{item.initial}}</view>
+        <view class="character-copy">
+          <view class="character-name">{{item.display_name}}</view>
+          <view class="muted small">{{item.gender_label}} · {{item.age}} 岁 · {{item.mbti || "未设置 MBTI"}}</view>
+          <view class="style-line">{{item.style_label || item.basic_info || "暂无角色设定"}}</view>
+        </view>
+      </view>
+      <view class="button-row section">
+        <view class="wc-button secondary" hover-class="pressed" data-id="{{item.id}}" bindtap="toggle">{{item.selectedText}}</view>
+        <view class="wc-button secondary" hover-class="pressed" data-id="{{item.id}}" bindtap="detail">详情</view>
+        <view class="wc-button ghost" hover-class="pressed" data-id="{{item.id}}" bindtap="edit">编辑</view>
+        <view class="wc-button ghost danger" hover-class="pressed" data-id="{{item.id}}" bindtap="remove">删除</view>
+      </view>
+    </view>
+  </block>
+
+  <block wx:else>
+    <view class="panel">
+      <view class="panel-title">{{formTitle}}</view>
+
+      <view class="field">
+        <view class="field-label">名字</view>
+        <input class="field-control" maxlength="20" value="{{form.display_name}}" data-key="display_name" bindinput="onInput" />
+      </view>
+
+      <view class="field">
+        <view class="field-label">性别 / 音色方向</view>
+        <picker range="{{genders}}" value="{{genderIndex}}" bindchange="onGenderChange">
+          <view class="field-control">{{genderLabels[form.gender]}}</view>
+        </picker>
+      </view>
+
+      <view class="field">
+        <view class="field-label">年龄</view>
+        <input class="field-control" type="number" value="{{form.age}}" data-key="age" bindinput="onInput" />
+      </view>
+
+      <view class="field">
+        <view class="field-label">MBTI</view>
+        <picker range="{{mbtiOptions}}" value="{{mbtiIndex}}" bindchange="onMbtiChange">
+          <view class="field-control">{{form.mbti || "不设置"}}</view>
+        </picker>
+      </view>
+
+      <view class="field">
+        <view class="field-label">背景信息</view>
+        <textarea class="field-control textarea" maxlength="400" value="{{form.basic_info}}" data-key="basic_info" bindinput="onInput" />
+      </view>
+
+      <view class="field">
+        <view class="field-label">说话风格</view>
+        <textarea class="field-control textarea" maxlength="400" value="{{form.style_label}}" data-key="style_label" bindinput="onInput" />
+      </view>
+
+      <view class="field">
+        <view class="field-label">头像种子</view>
+        <input class="field-control" value="{{form.avatar_seed}}" data-key="avatar_seed" bindinput="onInput" />
+      </view>
+
+      <view class="button-row section">
+        <view class="wc-button secondary" hover-class="pressed" bindtap="backToList">取消</view>
+        <view class="wc-button" hover-class="pressed" bindtap="save">保存</view>
+      </view>
+    </view>
+  </block>
+
+  <view class="detail-mask" wx:if="{{detail}}" bindtap="closeDetail">
+    <view class="detail-panel" catchtap="noop">
+      <view class="panel-title">{{detail.display_name}}</view>
+      <view class="tag">{{genderLabels[detail.gender]}}</view>
+      <view class="tag">{{detail.age}} 岁</view>
+      <view class="tag">{{detail.mbti || "未设置 MBTI"}}</view>
+      <view class="detail-block">
+        <view class="field-label">背景</view>
+        <view>{{detail.basic_info || "暂无"}}</view>
+      </view>
+      <view class="detail-block">
+        <view class="field-label">风格</view>
+        <view>{{detail.style_label || "暂无"}}</view>
+      </view>
+      <view class="wc-button section" hover-class="pressed" bindtap="closeDetail">关闭</view>
+    </view>
+  </view>
+</view>
