@@ -30,6 +30,11 @@ function getTokendanceUrl(baseUrl: string): string {
   return `${withoutTrailingSlash}/chat/completions`;
 }
 
+function shouldDisableTokendanceThinking(model: string): boolean {
+  const modelLower = model.toLowerCase();
+  return ["glm", "kimi", "minimax", "qwen"].some((token) => modelLower.includes(token));
+}
+
 /** Resolve ModelRef for a model id; used to apply per-model temperature/reasoning overrides. */
 function getModelRef(model: string): (typeof PROJECT_MODELS)[number] | (typeof ALL_MODELS)[number] | undefined {
   return ALL_MODELS.find((ref) => ref.model === model) ?? PROJECT_MODELS.find((ref) => ref.model === model);
@@ -354,10 +359,9 @@ async function runBatchItem(
       requestBody.max_tokens = Math.max(16, Math.floor(max_tokens));
     }
 
-    // GLM / Kimi / MiniMax can spend short completions entirely on reasoning.
+    // Some TokenDance models can spend short completions entirely on reasoning.
     // Disable thinking so game speech reliably appears in message.content.
-    const modelLower = model.toLowerCase();
-    if (modelLower.includes("glm") || modelLower.includes("kimi") || modelLower.includes("minimax")) {
+    if (shouldDisableTokendanceThinking(model)) {
       requestBody.thinking = { type: "disabled" };
     }
 
@@ -708,10 +712,9 @@ export async function POST(request: NextRequest) {
         requestBody.stream = true;
       }
 
-      // GLM / Kimi / MiniMax can spend short completions entirely on reasoning.
+      // Some TokenDance models can spend short completions entirely on reasoning.
       // Disable thinking so game speech reliably appears in message.content.
-      const modelLower = model.toLowerCase();
-      if (modelLower.includes("glm") || modelLower.includes("kimi") || modelLower.includes("minimax")) {
+      if (shouldDisableTokendanceThinking(model)) {
         requestBody.thinking = { type: "disabled" };
       }
 
