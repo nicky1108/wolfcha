@@ -14,7 +14,7 @@ import { getGeneratorModel, getSelectedModels, hasDashscopeKey, hasZenmuxKey, is
 import { aiLogger } from "./ai-logger";
 import { AI_TEMPERATURE, GAME_TEMPERATURE } from "./ai-config";
 import { getRandomScenario } from "./scenarios";
-import { resolveVoiceId, VOICE_PRESETS, type AppLocale } from "./voice-constants";
+import { resolveFixedVoiceId, VOICE_PRESETS, type AppLocale } from "./voice-constants";
 import { getI18n } from "@/i18n/translator";
 
 export interface GeneratedCharacter {
@@ -505,9 +505,11 @@ export async function generateCharacters(
   options?: {
     onBaseProfiles?: (profiles: BaseProfile[]) => void;
     onCharacter?: (index: number, character: GeneratedCharacter) => void;
+    locale?: AppLocale;
   }
 ): Promise<GeneratedCharacter[]> {
   const usedScenario = scenario ?? getRandomScenario();
+  const voiceLocale = options?.locale ?? "zh";
   const runOnce = async () => {
     const startTime = Date.now();
     const basePrompt = buildBaseProfilesPrompt(count, usedScenario);
@@ -593,11 +595,11 @@ export async function generateCharacters(
             if (isValidPersonaForProfile(c.persona, profile)) {
               emittedIndices.add(profileIndex);
               
-              const voiceId = resolveVoiceId(
+              const voiceId = resolveFixedVoiceId(
                 c.persona.voiceId,
                 c.persona.gender,
                 c.persona.age,
-                "zh" as AppLocale
+                voiceLocale
               );
 
               const character: GeneratedCharacter = {
@@ -658,11 +660,11 @@ export async function generateCharacters(
         
         const c = alignedCharacters[i];
         const profile = baseProfiles[i];
-        const voiceId = resolveVoiceId(
+        const voiceId = resolveFixedVoiceId(
           c.persona.voiceId,
           c.persona.gender,
           c.persona.age,
-          "zh" as AppLocale
+          voiceLocale
         );
 
         const character: GeneratedCharacter = {

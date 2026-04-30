@@ -47,6 +47,9 @@ import {
   computeUniqueTopSeat,
 } from "@/lib/game-flow-controller";
 import { playNarrator } from "@/lib/narrator-audio-player";
+import { audioManager, makeAudioTaskId, type AudioTask } from "@/lib/audio-manager";
+import { getLocale } from "@/i18n/locale-store";
+import { resolveFixedVoiceId, type AppLocale } from "@/lib/voice-constants";
 import { PhaseManager } from "@/game/core/PhaseManager";
 import { supabase } from "@/lib/supabase";
 import { gameStatsTracker } from "@/hooks/useGameStats";
@@ -1399,6 +1402,7 @@ export function useGameLogic() {
       });
 
       const systemMessages = getSystemMessages();
+      const gameLocale = getLocale() as AppLocale;
       const scenario = isGenshinMode ? undefined : getRandomScenario();
       const makeId = () => generateUUID();
 
@@ -1464,7 +1468,7 @@ export function useGameLogic() {
           gender: cc.gender,
           age: cc.age,
           basicInfo: cc.basic_info?.trim() || undefined,
-          voiceId: undefined,
+          voiceId: resolveFixedVoiceId(undefined, cc.gender, cc.age, gameLocale),
         },
         avatarSeed: cc.avatar_seed || undefined,
       }));
@@ -1505,7 +1509,7 @@ export function useGameLogic() {
         // Fill remaining slots with generated characters if needed
         const remainingCount = numAiPlayers - customGeneratedCharacters.length;
         if (remainingCount > 0) {
-          const extraCharacters = await generateCharacters(remainingCount, scenario, {});
+          const extraCharacters = await generateCharacters(remainingCount, scenario, { locale: gameLocale });
           characters = [...customGeneratedCharacters, ...extraCharacters];
         } else {
           characters = customGeneratedCharacters;
@@ -1565,6 +1569,7 @@ export function useGameLogic() {
         });
       } else {
         characters = await generateCharacters(numAiPlayers, scenario, {
+          locale: gameLocale,
           onBaseProfiles: (profiles) => {
             profiles.forEach((p, i) => {
               const seat = aiSeatOrder[i] ?? i + 1;
@@ -2177,16 +2182,38 @@ export function useGameLogic() {
       return { finished: false, shouldAdvanceToNextSpeaker: false, shouldAutoAdvanceToNextAI: false };
     }
 
-    if (queue.isStreaming && !isCurrentSegmentCompleted()) {
+    if (!isCurrentSegmentCompleted()) {
       return { finished: false, shouldAdvanceToNextSpeaker: false, shouldAutoAdvanceToNextAI: false };
     }
 
     const { segments, currentIndex, player, afterSpeech } = queue;
 
     let nextState = gameStateRef.current;
+    const getSpeechAudioTask = (targetPlayer: Player, segment: string): AudioTask | null => {
+      if (!audioManager.isEnabled()) return null;
+      const persona = targetPlayer.agentProfile?.persona;
+      if (!persona) return null;
+      const voiceId = resolveFixedVoiceId(
+        persona.voiceId,
+        persona.gender,
+        persona.age,
+        getLocale() as AppLocale
+      );
+      return {
+        id: makeAudioTaskId(voiceId, segment),
+        text: segment,
+        voiceId,
+        playerId: targetPlayer.playerId,
+      };
+    };
 
     // 将当前句子添加到消息列表（如果尚未提交）
     const currentSegment = segments[currentIndex];
+    const currentAudioTask = currentSegment ? getSpeechAudioTask(player, currentSegment) : null;
+    if (currentAudioTask && audioManager.isTaskActive(currentAudioTask.id)) {
+      return { finished: false, shouldAdvanceToNextSpeaker: false, shouldAutoAdvanceToNextAI: false };
+    }
+
     if (currentSegment && currentSegment.trim().length > 0 && !isCurrentSegmentCommitted()) {
       nextState = addPlayerMessage(nextState, player.playerId, currentSegment);
       setGameState(nextState);
@@ -2214,10 +2241,26 @@ export function useGameLogic() {
       }
     }
 
+    const nextSegment = segments[currentIndex + 1];
+    const nextAudioTask = nextSegment ? getSpeechAudioTask(player, nextSegment) : null;
+    if (nextAudioTask) {
+      try {
+        await audioManager.ensureReady(nextAudioTask);
+      } catch {
+        // If TTS fails, keep text flow usable.
+      }
+    }
+
     const result = advanceSpeechQueue();
     if (!result) return { finished: false, shouldAdvanceToNextSpeaker: false, shouldAutoAdvanceToNextAI: false };
 
     if (!result.finished) {
+      if (result.segment && result.player) {
+        const displayedAudioTask = getSpeechAudioTask(result.player, result.segment);
+        if (displayedAudioTask && audioManager.isCached(displayedAudioTask.id)) {
+          audioManager.addToQueue(displayedAudioTask);
+        }
+      }
       return { finished: false, shouldAdvanceToNextSpeaker: false, shouldAutoAdvanceToNextAI: false };
     }
 

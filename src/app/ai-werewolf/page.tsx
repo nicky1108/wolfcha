@@ -133,7 +133,7 @@ const faqs = [
   },
   {
     question: "Is there voice acting?",
-    answer: "Yes! Wolfcha features optional voice acting for narration and character dialogue, making the experience more immersive. You can enable or disable it in settings.",
+    answer: "Yes! Wolfcha features optional voice acting for narration and character dialogue, making the experience more immersive. You can enable or disable it from the voice control above the in-game dialogue box.",
   },
   {
     question: "Is Wolfcha free to play?",

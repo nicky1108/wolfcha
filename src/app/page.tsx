@@ -41,6 +41,7 @@ import { BADGE_TRANSFER_TORN } from "@/lib/game-master";
 import { WelcomeScreen } from "@/components/game/WelcomeScreen";
 import { PlayerCardCompact } from "@/components/game/PlayerCardCompact";
 import { DialogArea } from "@/components/game/DialogArea";
+import { VoiceCreditToggle } from "@/components/game/VoiceCreditToggle";
 import { BottomActionPanel } from "@/components/game/BottomActionPanel";
 import { Notebook } from "@/components/game/Notebook";
 import { GameBackground } from "@/components/game/GameBackground";
@@ -54,13 +55,16 @@ import { SettingsModal } from "@/components/game/SettingsModal";
 import { buildSimpleAvatarUrl, getModelLogoUrl } from "@/lib/avatar-config";
 import { audioManager, makeAudioTaskId } from "@/lib/audio-manager";
 import { getNarratorPlayer } from "@/lib/narrator-audio-player";
-import { resolveVoiceId, type AppLocale } from "@/lib/voice-constants";
+import { resolveFixedVoiceId, type AppLocale } from "@/lib/voice-constants";
 import { getLocale } from "@/i18n/locale-store";
 import { useSettings } from "@/hooks/useSettings";
 import { useTutorial } from "@/hooks/useTutorial";
 import { persistReferralFromCurrentUrl, removeReferralFromCurrentUrl } from "@/lib/referral";
 import { useRouter, useParams } from "next/navigation";
 import { useGameAnalysis } from "@/hooks/useGameAnalysis";
+import { supabase } from "@/lib/supabase";
+import { consumeGameCredit } from "@/lib/credits-client";
+import { STANDARD_GAME_CREDIT_COST } from "@/lib/game-credit-cost";
 
 const RITUAL_CUE_DURATION_SECONDS = 2.2;
 const DAY_NIGHT_BLINK = {
@@ -173,10 +177,17 @@ export default function Home() {
   } = useGameLogic();
   const { settings, setBgmVolume, setSoundEnabled, setAiVoiceEnabled, setGenshinMode, setSpectatorMode, setAutoAdvanceDialogueEnabled } = useSettings();
   const { bgmVolume, isSoundEnabled, isAiVoiceEnabled, isGenshinMode, isSpectatorMode, isAutoAdvanceDialogueEnabled } = settings;
-  const shouldUseAiVoice = isSoundEnabled && isAiVoiceEnabled && bgmVolume > 0;
+  const shouldUseAiVoice = isSoundEnabled && isAiVoiceEnabled;
+  const gameStateRef = useRef(gameState);
+
+  useEffect(() => {
+    gameStateRef.current = gameState;
+  }, [gameState]);
   
   // Exit game functionality - use restartGame which properly handles all state resets
   const gameInProgress = useMemo(() => isGameInProgress(gameState), [gameState]);
+  const [isVoiceCreditCharging, setIsVoiceCreditCharging] = useState(false);
+  const voiceChargedGameIdRef = useRef<string | null>(null);
   const {
     state: tutorialState,
     isLoaded: isTutorialLoaded,
@@ -228,6 +239,57 @@ export default function Home() {
     if (gameState.phase !== "GAME_END") return;
     setAiVoiceEnabled(false);
   }, [gameState.phase, setAiVoiceEnabled]);
+
+  useEffect(() => {
+    if (gameStarted && gameState.gameId) return;
+    voiceChargedGameIdRef.current = null;
+    setIsVoiceCreditCharging(false);
+  }, [gameStarted, gameState.gameId]);
+
+  const handleAiVoiceToggle = useCallback(async (nextEnabled: boolean) => {
+    if (!nextEnabled) {
+      setAiVoiceEnabled(false);
+      return;
+    }
+
+    if (isVoiceCreditCharging) return;
+
+    const currentGameId = gameState.gameId;
+    const needsVoiceSurcharge =
+      gameInProgress &&
+      currentGameId &&
+      voiceChargedGameIdRef.current !== currentGameId;
+
+    if (!needsVoiceSurcharge) {
+      setSoundEnabled(true);
+      setAiVoiceEnabled(true);
+      return;
+    }
+
+    setIsVoiceCreditCharging(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        await consumeGameCredit(session.access_token, STANDARD_GAME_CREDIT_COST);
+      }
+      voiceChargedGameIdRef.current = currentGameId;
+      setSoundEnabled(true);
+      setAiVoiceEnabled(true);
+    } catch {
+      toast.error(t("gameVoice.toasts.creditFail.title"), {
+        description: t("gameVoice.toasts.creditFail.description"),
+      });
+    } finally {
+      setIsVoiceCreditCharging(false);
+    }
+  }, [
+    gameInProgress,
+    gameState.gameId,
+    isVoiceCreditCharging,
+    setAiVoiceEnabled,
+    setSoundEnabled,
+    t,
+  ]);
 
   const handleViewAnalysis = useCallback(() => {
     const basePath = slug ? `/${slug}` : "";
@@ -659,10 +721,11 @@ export default function Home() {
     if (!currentDialogue?.isStreaming) return 25;
     if (!text.trim()) return 25;
     if (text.includes(t("dayPhase.organizing")) || text.includes(t("ui.generatingVoice"))) return 25;
+    if (!shouldUseAiVoice) return 25;
 
     const player = gameState.players.find((p) => p.displayName === currentDialogue.speaker);
     const locale = getLocale() as AppLocale;
-    const voiceId = resolveVoiceId(
+    const voiceId = resolveFixedVoiceId(
       player?.agentProfile?.persona?.voiceId,
       player?.agentProfile?.persona?.gender,
       player?.agentProfile?.persona?.age,
@@ -674,7 +737,7 @@ export default function Home() {
 
     const raw = durationMs / Math.max(1, text.length);
     return Math.min(60, Math.max(10, Math.round(raw)));
-  }, [currentDialogue, gameState.players]);
+  }, [currentDialogue, gameState.players, shouldUseAiVoice, t]);
 
   const { displayedText, isTyping, completedText } = useTypewriter({
     text: currentDialogue?.text || "",
@@ -682,12 +745,73 @@ export default function Home() {
     enabled: !!currentDialogue?.isStreaming,
   });
 
+  const currentDialogueRef = useRef(currentDialogue);
+  useEffect(() => {
+    currentDialogueRef.current = currentDialogue;
+  }, [currentDialogue]);
+  const completedTextRef = useRef(completedText);
+  const audioCompletedTaskIdsRef = useRef<Set<string>>(new Set());
+  const [speechSegmentCompletionTick, setSpeechSegmentCompletionTick] = useState(0);
+
+  useEffect(() => {
+    completedTextRef.current = completedText;
+  }, [completedText]);
+
+  const markCurrentSegmentReady = useCallback(() => {
+    markCurrentSegmentCompleted();
+    setSpeechSegmentCompletionTick((tick) => tick + 1);
+  }, [markCurrentSegmentCompleted]);
+
+  const getCurrentDialogueAudioTaskId = useCallback(() => {
+    if (!shouldUseAiVoice) return null;
+    const dialogue = currentDialogueRef.current;
+    if (!dialogue?.isStreaming) return null;
+    const text = dialogue.text.trim();
+    if (!text) return null;
+    if (text.includes(t("dayPhase.organizing")) || text.includes(t("ui.generatingVoice"))) return null;
+    const player = gameStateRef.current.players.find((p) => p.displayName === dialogue.speaker);
+    if (!player || player.isHuman || !player.agentProfile?.persona) return null;
+    const persona = player.agentProfile.persona;
+    const voiceId = resolveFixedVoiceId(
+      persona.voiceId,
+      persona.gender,
+      persona.age,
+      getLocale() as AppLocale
+    );
+    return makeAudioTaskId(voiceId, text);
+  }, [shouldUseAiVoice, t]);
+
+  useEffect(() => {
+    const taskId = getCurrentDialogueAudioTaskId();
+    if (!taskId) return;
+    audioCompletedTaskIdsRef.current.delete(taskId);
+  }, [currentDialogue?.speaker, currentDialogue?.text, getCurrentDialogueAudioTaskId]);
+
+  useEffect(() => {
+    return audioManager.subscribe((event) => {
+      if (event.type !== "end") return;
+      const taskId = getCurrentDialogueAudioTaskId();
+      if (!taskId || event.task.id !== taskId) return;
+      audioCompletedTaskIdsRef.current.add(taskId);
+      if (completedTextRef.current !== currentDialogueRef.current?.text) return;
+      markCurrentSegmentReady();
+    });
+  }, [getCurrentDialogueAudioTaskId, markCurrentSegmentReady]);
+
   useEffect(() => {
     if (!currentDialogue?.isStreaming) return;
     if (!completedText) return;
     if (completedText !== currentDialogue.text) return;
-    markCurrentSegmentCompleted();
-  }, [completedText, currentDialogue, markCurrentSegmentCompleted]);
+    const taskId = getCurrentDialogueAudioTaskId();
+    if (
+      taskId &&
+      (audioManager.isCached(taskId) || audioManager.isTaskActive(taskId)) &&
+      !audioCompletedTaskIdsRef.current.has(taskId)
+    ) {
+      return;
+    }
+    markCurrentSegmentReady();
+  }, [completedText, currentDialogue, getCurrentDialogueAudioTaskId, markCurrentSegmentReady]);
 
   // Enter/Right key to advance AI speech or move to next round
   useEffect(() => {
@@ -715,7 +839,6 @@ export default function Home() {
         // 当AI在发言时（有currentDialogue），按键推进下一句
         if (currentDialogue) {
           e.preventDefault();
-          audioManager.stopCurrent();
           Promise.resolve(advanceSpeech()).then((r) => {
             if (r?.shouldAdvanceToNextSpeaker) {
               handleNextRound();
@@ -802,6 +925,14 @@ export default function Home() {
       if (currentDialogue.isStreaming) {
         if (isTyping) return;
         if (completedText !== currentDialogue.text) return;
+        const taskId = getCurrentDialogueAudioTaskId();
+        if (
+          taskId &&
+          (audioManager.isCached(taskId) || audioManager.isTaskActive(taskId)) &&
+          !audioCompletedTaskIdsRef.current.has(taskId)
+        ) {
+          return;
+        }
       }
 
       const signature = currentDialogue.isStreaming
@@ -840,6 +971,7 @@ export default function Home() {
     gameState,
     gameState.day,
     gameState.phase,
+    getCurrentDialogueAudioTaskId,
     handleAdvanceDialogue,
     humanPlayer,
     isAutoAdvanceDialogueEnabled,
@@ -848,6 +980,7 @@ export default function Home() {
     isSettingsOpen,
     isWaitingForAI,
     showTable,
+    speechSegmentCompletionTick,
     waitingForNextRound,
   ]);
 
@@ -1313,11 +1446,9 @@ export default function Home() {
               onSpectatorModeChange={setSpectatorMode}
               bgmVolume={bgmVolume}
               isSoundEnabled={isSoundEnabled}
-              isAiVoiceEnabled={isAiVoiceEnabled}
               isAutoAdvanceDialogueEnabled={isAutoAdvanceDialogueEnabled}
               onBgmVolumeChange={setBgmVolume}
               onSoundEnabledChange={setSoundEnabled}
-              onAiVoiceEnabledChange={setAiVoiceEnabled}
               onAutoAdvanceDialogueEnabledChange={setAutoAdvanceDialogueEnabled}
             />
           </motion.div>
@@ -1567,6 +1698,11 @@ export default function Home() {
 
                   {/* 中间区域：对话区 */}
                   <div className="flex-1 flex flex-col min-w-0 min-h-0 h-full max-w-[980px] lg:max-w-[1100px] xl:max-w-[1200px] 2xl:max-w-[1280px] overflow-hidden">
+                    <VoiceCreditToggle
+                      enabled={isAiVoiceEnabled}
+                      charging={isVoiceCreditCharging}
+                      onToggle={handleAiVoiceToggle}
+                    />
                     <DialogArea
                       gameState={gameState}
                       humanPlayer={humanPlayer}
@@ -1726,12 +1862,10 @@ export default function Home() {
         onOpenChange={setIsSettingsOpen}
         bgmVolume={bgmVolume}
         isSoundEnabled={isSoundEnabled}
-        isAiVoiceEnabled={isAiVoiceEnabled}
         isAutoAdvanceDialogueEnabled={isAutoAdvanceDialogueEnabled}
         gameState={gameState}
         onBgmVolumeChange={setBgmVolume}
         onSoundEnabledChange={setSoundEnabled}
-        onAiVoiceEnabledChange={setAiVoiceEnabled}
         onAutoAdvanceDialogueEnabledChange={setAutoAdvanceDialogueEnabled}
         isGameInProgress={gameInProgress}
         onExitGame={restartGame}

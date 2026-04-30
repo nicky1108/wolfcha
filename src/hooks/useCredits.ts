@@ -7,7 +7,6 @@ import {
   getDefaultDemoModeConfigSnapshot,
   type DemoModePublicConfigSnapshot,
 } from "@/lib/demo-config";
-import { getDashscopeApiKey, getZenmuxApiKey, isCustomKeyEnabled } from "@/lib/api-keys";
 import { clearGuestId, getGuestId, readGuestIdFromStorage } from "@/lib/demo-mode";
 import { supabase } from "@/lib/supabase";
 import {
@@ -17,10 +16,13 @@ import {
 } from "@/lib/welfare-config";
 import { readReferralFromStorage, removeReferralFromStorage } from "@/lib/referral";
 import type { SpringCampaignSnapshot } from "@/lib/spring-campaign";
+import { consumeGameCredit, ConsumeGameCreditError } from "@/lib/credits-client";
+import { STANDARD_GAME_CREDIT_COST } from "@/lib/game-credit-cost";
 
 const REFERRAL_ENDPOINT = "/api/credits/referral";
 const REDEEM_ENDPOINT = "/api/credits/redeem";
 const SPRING_CAMPAIGN_ENDPOINT = "/api/credits/spring-login-bonus";
+const BOOTSTRAP_CREDITS_ENDPOINT = "/api/credits/bootstrap";
 const JSON_CONTENT_TYPE = "application/json";
 const DEMO_CONFIG_REFRESH_INTERVAL_MS = 60_000;
 const AUTH_EVENT = {
@@ -81,42 +83,21 @@ export function useCredits() {
     return snapshot;
   }, []);
 
-  const consumeCredit = useCallback(async (): Promise<boolean> => {
+  const consumeCredit = useCallback(async (cost = STANDARD_GAME_CREDIT_COST): Promise<boolean> => {
     if (isDemoMode) return true;
     if (!session) return false;
 
     try {
-      const customEnabled = isCustomKeyEnabled();
-      const headerApiKey = customEnabled ? getZenmuxApiKey() : "";
-      const dashscopeApiKey = customEnabled ? getDashscopeApiKey() : "";
-      const res = await fetch("/api/credits/consume", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-          ...(headerApiKey ? { "X-Zenmux-Api-Key": headerApiKey } : {}),
-          ...(dashscopeApiKey ? { "X-Dashscope-Api-Key": dashscopeApiKey } : {}),
-        },
-      });
-
-      if (!res.ok) {
-        try {
-          const payload = (await res.json()) as { campaign?: SpringCampaignSnapshot };
-          if (payload.campaign) {
-            setSpringCampaign(payload.campaign);
-          }
-        } catch {
-          // no-op
-        }
-        return false;
-      }
-
-      const payload = (await res.json()) as { credits: number; campaign?: SpringCampaignSnapshot };
+      const payload = await consumeGameCredit(session.access_token, cost);
       setCredits(payload.credits);
       if (payload.campaign) {
         setSpringCampaign(payload.campaign);
       }
       return true;
-    } catch {
+    } catch (error) {
+      if (error instanceof ConsumeGameCreditError && error.payload?.campaign) {
+        setSpringCampaign(error.payload.campaign);
+      }
       return false;
     }
   }, [isDemoMode, session]);
@@ -224,6 +205,26 @@ export function useCredits() {
     }
   }, []);
 
+  const bootstrapCredits = useCallback(async (accessToken: string): Promise<void> => {
+    try {
+      const res = await fetch(BOOTSTRAP_CREDITS_ENDPOINT, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      if (!res.ok) return;
+
+      const payload = (await res.json()) as { credits?: number };
+      if (typeof payload.credits === "number") {
+        setCredits(payload.credits);
+      }
+    } catch {
+      // Non-critical; downstream credit reads still surface hard failures.
+    }
+  }, []);
+
   const applyReferralCode = useCallback(async (accessToken: string): Promise<void> => {
     if (!REFERRAL_BONUS_ENABLED) {
       removeReferralFromStorage();
@@ -259,12 +260,13 @@ export function useCredits() {
   }, []);
 
   const handleAuthenticatedSession = useCallback(async (currentSession: Session): Promise<void> => {
+    await bootstrapCredits(currentSession.access_token);
     await applyReferralCode(currentSession.access_token);
     await Promise.all([
       claimDailyBonus(currentSession.access_token, currentSession.user.id),
       claimSpringCampaign(currentSession.access_token, currentSession.user.id),
     ]);
-  }, [applyReferralCode, claimDailyBonus, claimSpringCampaign]);
+  }, [applyReferralCode, bootstrapCredits, claimDailyBonus, claimSpringCampaign]);
 
   useEffect(() => {
     let cancelled = false;

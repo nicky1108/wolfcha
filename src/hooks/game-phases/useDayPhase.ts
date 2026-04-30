@@ -17,7 +17,7 @@ import {
 import { PHASE_CATEGORIES } from "@/lib/game-constants";
 import { type FlowToken } from "@/lib/game-flow-controller";
 import { audioManager, makeAudioTaskId } from "@/lib/audio-manager";
-import { resolveVoiceId, type AppLocale } from "@/lib/voice-constants";
+import { resolveFixedVoiceId, type AppLocale } from "@/lib/voice-constants";
 import { getLocale } from "@/i18n/locale-store";
 
 export interface DayPhaseCallbacks {
@@ -27,7 +27,7 @@ export interface DayPhaseCallbacks {
   isTokenValid: (token: FlowToken) => boolean;
   initSpeechQueue: (segments: string[], player: Player, afterSpeech?: (s: unknown) => Promise<void>) => void;
   initStreamingSpeechQueue: (player: Player, afterSpeech?: (s: unknown) => Promise<void>) => void;
-  appendToSpeechQueue: (segment: string) => void;
+  appendToSpeechQueue: (segment: string) => boolean;
   finalizeSpeechQueue: (options?: { nextSpeakerIsAI?: boolean }) => void;
   setPrefetchedSpeech: (prefetch: PrefetchedSpeech | null) => void;
   consumePrefetchedSpeech: (criteria: PrefetchCriteria) => string[] | null;
@@ -114,7 +114,7 @@ export function useDayPhase(
         state.players.some((p) => p.seat === seat && p.alive)
       );
       const total = state.players.length;
-      let cursor = (state.currentSpeakerSeat ?? -1) + 1;
+      const cursor = (state.currentSpeakerSeat ?? -1) + 1;
       for (let step = 0; step < total; step++) {
         const seat = ((cursor + step) % total + total) % total;
         if (aliveCandidateSeats.includes(seat)) {
@@ -226,7 +226,7 @@ export function useDayPhase(
 
     // Get current locale for voice resolution
     const locale = getLocale() as AppLocale;
-    const voiceId = resolveVoiceId(
+    const voiceId = resolveFixedVoiceId(
       player.agentProfile?.persona?.voiceId,
       player.agentProfile?.persona?.gender,
       player.agentProfile?.persona?.age,
@@ -268,13 +268,14 @@ export function useDayPhase(
           options?.afterSpeech as ((s: unknown) => Promise<void>) | undefined
         );
         audioManager.addToQueue(task);
-        // Prefetch remaining segments in order (chained to preserve sequence)
+        // Prefetch remaining segments in order. Do not enqueue audio until the
+        // matching text segment is actually displayed.
         let chain = Promise.resolve();
         for (let i = 1; i < prefetchedSegments.length; i++) {
           const seg = prefetchedSegments[i];
           const segTask = { id: makeAudioTaskId(voiceId, seg), text: seg, voiceId, playerId: player.playerId };
           chain = chain.then(() =>
-            audioManager.ensureReady(segTask).then(() => audioManager.addToQueue(segTask)).catch(() => {})
+            audioManager.ensureReady(segTask).catch(() => {})
           );
         }
       } else {
@@ -348,8 +349,10 @@ export function useDayPhase(
                 audioManager.ensureReady(task).then(() => {
                   if (isTimedOut) return;
                   setIsWaitingForAI(false);
-                  appendToSpeechQueue(segment);
-                  audioManager.addToQueue(task);
+                  const displayed = appendToSpeechQueue(segment);
+                  if (displayed) {
+                    audioManager.addToQueue(task);
+                  }
                 }).catch(() => {
                   // TTS failed, show text anyway
                   setIsWaitingForAI(false);
@@ -362,15 +365,19 @@ export function useDayPhase(
               appendToSpeechQueue(segment);
             }
           } else {
-            // Subsequent segments: show text immediately, prefetch in background
-            appendToSpeechQueue(segment);
             if (ttsEnabled) {
-              // Chain ensures addToQueue runs in segment arrival order
+              // Chain ensures segments become available in arrival order. Audio
+              // playback is queued later, when the text segment becomes current.
               audioChain = audioChain.then(() =>
                 audioManager.ensureReady(task).then(() => {
-                  audioManager.addToQueue(task);
+                  const displayed = appendToSpeechQueue(segment);
+                  if (displayed) {
+                    audioManager.addToQueue(task);
+                  }
                 }).catch(() => {})
               );
+            } else {
+              appendToSpeechQueue(segment);
             }
           }
         },

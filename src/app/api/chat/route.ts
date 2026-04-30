@@ -354,9 +354,10 @@ async function runBatchItem(
       requestBody.max_tokens = Math.max(16, Math.floor(max_tokens));
     }
 
-    // GLM-4.7 / Kimi K2.5 默认开启思考，API 参数可关闭（已实测有效）
+    // GLM / Kimi / MiniMax can spend short completions entirely on reasoning.
+    // Disable thinking so game speech reliably appears in message.content.
     const modelLower = model.toLowerCase();
-    if (modelLower.includes("glm") || modelLower.includes("kimi")) {
+    if (modelLower.includes("glm") || modelLower.includes("kimi") || modelLower.includes("minimax")) {
       requestBody.thinking = { type: "disabled" };
     }
 
@@ -707,9 +708,10 @@ export async function POST(request: NextRequest) {
         requestBody.stream = true;
       }
 
-      // GLM-4.7 / Kimi K2.5 默认开启思考，API 参数可关闭（已实测有效）
+      // GLM / Kimi / MiniMax can spend short completions entirely on reasoning.
+      // Disable thinking so game speech reliably appears in message.content.
       const modelLower = model.toLowerCase();
-      if (modelLower.includes("glm") || modelLower.includes("kimi")) {
+      if (modelLower.includes("glm") || modelLower.includes("kimi") || modelLower.includes("minimax")) {
         requestBody.thinking = { type: "disabled" };
       }
 

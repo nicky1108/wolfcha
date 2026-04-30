@@ -259,19 +259,19 @@ export const MODEL_IDS = {
     deepseek: "deepseek-v3.2",
   },
   tokendance: {
-    minimaxM27: "minimax-m2.7",
-    qwen3Max: "qwen3-max",
+    gpt55: "gpt-5.5",
+    gpt54Mini: "gpt-5.4-mini",
+    minimaxM27Highspeed: "MiniMax-M2.7-highspeed",
     glm5: "glm-5",
     kimiK25: "kimi-k2.5",
-    deepseekV32: "deepseek-v3.2",
-    deepseekV4Flash: "deepseek-v4-flash",
+    qwen36Plus: "qwen3.6-plus",
   },
 } as const;
 
 export const DEFAULT_MODEL_CONFIG = {
-  generator: MODEL_IDS.tokendance.deepseekV4Flash,
-  summary: MODEL_IDS.tokendance.deepseekV4Flash,
-  review: MODEL_IDS.tokendance.deepseekV4Flash,
+  generator: MODEL_IDS.tokendance.gpt55,
+  summary: MODEL_IDS.tokendance.gpt55,
+  review: MODEL_IDS.tokendance.gpt55,
   validation: {
     zenmux: MODEL_IDS.zenmux.geminiFlashLite,
     dashscope: MODEL_IDS.dashscope.deepseek,
@@ -290,25 +290,23 @@ export const BUILTIN_PLAYER_MODELS: ModelRef[] = [
   // { provider: "zenmux", model: MODEL_IDS.zenmux.kimiK2 },
   // { provider: "zenmux", model: MODEL_IDS.zenmux.qwen3Max },
   // { provider: "zenmux", model: MODEL_IDS.zenmux.doubaoSeed },
-  { provider: "tokendance", model: MODEL_IDS.tokendance.minimaxM27, temperature: 1 },
-  { provider: "tokendance", model: MODEL_IDS.tokendance.qwen3Max },
-  { provider: "tokendance", model: MODEL_IDS.tokendance.glm5, temperature: 1 },
+  { provider: "tokendance", model: MODEL_IDS.tokendance.gpt55 },
+  { provider: "tokendance", model: MODEL_IDS.tokendance.gpt54Mini },
+  { provider: "tokendance", model: MODEL_IDS.tokendance.minimaxM27Highspeed, temperature: 1 },
   { provider: "tokendance", model: MODEL_IDS.tokendance.kimiK25 },
-  { provider: "tokendance", model: MODEL_IDS.tokendance.deepseekV32 },
-  { provider: "tokendance", model: MODEL_IDS.tokendance.deepseekV4Flash },
-  { provider: "dashscope", model: MODEL_IDS.dashscope.deepseek },
+  { provider: "tokendance", model: MODEL_IDS.tokendance.glm5, temperature: 1 },
+  { provider: "tokendance", model: MODEL_IDS.tokendance.qwen36Plus },
 ];
 
 // Default built-in models exposed to the app when custom key is not enabled.
 // This list includes system defaults plus the small built-in player pool.
 export const AVAILABLE_MODELS: ModelRef[] = [
-  { provider: "tokendance", model: MODEL_IDS.tokendance.minimaxM27, temperature: 1 },
-  { provider: "tokendance", model: MODEL_IDS.tokendance.qwen3Max },
-  { provider: "tokendance", model: MODEL_IDS.tokendance.glm5, temperature: 1 },
+  { provider: "tokendance", model: MODEL_IDS.tokendance.gpt55 },
+  { provider: "tokendance", model: MODEL_IDS.tokendance.gpt54Mini },
+  { provider: "tokendance", model: MODEL_IDS.tokendance.minimaxM27Highspeed, temperature: 1 },
   { provider: "tokendance", model: MODEL_IDS.tokendance.kimiK25 },
-  { provider: "tokendance", model: MODEL_IDS.tokendance.deepseekV32 },
-  { provider: "tokendance", model: MODEL_IDS.tokendance.deepseekV4Flash },
-  { provider: "dashscope", model: MODEL_IDS.dashscope.deepseek },
+  { provider: "tokendance", model: MODEL_IDS.tokendance.glm5, temperature: 1 },
+  { provider: "tokendance", model: MODEL_IDS.tokendance.qwen36Plus },
 ];
 
 // Built-in project-key models that the server may call internally.

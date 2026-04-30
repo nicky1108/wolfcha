@@ -184,7 +184,7 @@ const faqs = [
   },
   {
     question: "How does voice acting work?",
-    answer: "Voice acting is optional. When enabled, a narrator reads game events, and AI characters speak their dialogue. You can toggle it on/off in settings. Multiple voice styles are available.",
+    answer: "Voice acting is optional. When enabled, a narrator reads game events, and AI characters speak their dialogue. You can toggle it from the voice control above the in-game dialogue box. Multiple voice styles are available.",
   },
   {
     question: "What AI models are available?",
@@ -364,9 +364,9 @@ export default function FeaturesPage() {
               dramatic moments. Sets the atmosphere and keeps the pace.
             </p>
             <ul className="mt-4 space-y-2 text-sm text-[var(--text-secondary)]">
-              <li>• "Night falls on the village..."</li>
-              <li>• "The village has voted. [Player] has been eliminated."</li>
-              <li>• "Dawn breaks. A body was found..."</li>
+              <li>• &ldquo;Night falls on the village...&rdquo;</li>
+              <li>• &ldquo;The village has voted. [Player] has been eliminated.&rdquo;</li>
+              <li>• &ldquo;Dawn breaks. A body was found...&rdquo;</li>
             </ul>
           </div>
           <div className="rounded-xl border border-[var(--border-color)] bg-[var(--bg-card)] p-6">

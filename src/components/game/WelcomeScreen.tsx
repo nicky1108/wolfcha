@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { FingerprintSimple, PawPrint, Sparkle, Wrench, GearSix, UserCircle, GithubLogo, Star, EnvelopeSimple, Handshake, DotsThreeOutlineVertical, Users, UsersFour } from "@phosphor-icons/react";
+import { FingerprintSimple, PawPrint, Sparkle, Wrench, GearSix, UserCircle, DotsThreeOutlineVertical, UsersFour } from "@phosphor-icons/react";
 import { WerewolfIcon } from "@/components/icons/FlatIcons";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -45,6 +45,7 @@ type SponsorCardProps = {
   delay: number;
   logoSrc?: string;
   logoAlt?: string;
+  logoClassName?: string;
   label?: string;
   name?: string;
   note?: string;
@@ -74,6 +75,7 @@ function SponsorCard({
   delay,
   logoSrc,
   logoAlt,
+  logoClassName,
   label,
   name,
   note,
@@ -108,7 +110,7 @@ function SponsorCard({
       <span className="wc-sponsor-card__border" aria-hidden="true" />
       <div className="wc-sponsor-card__content">
         {logoSrc && (
-          <img src={logoSrc} alt={logoAlt ?? ""} className="wc-sponsor-card__logo" />
+          <img src={logoSrc} alt={logoAlt ?? ""} className={["wc-sponsor-card__logo", logoClassName].filter(Boolean).join(" ")} />
         )}
         {label && <div className="wc-sponsor-card__label">{label}</div>}
         {name && <div className="wc-sponsor-card__name">{name}</div>}
@@ -217,11 +219,9 @@ interface WelcomeScreenProps {
   onSpectatorModeChange: (value: boolean) => void;
   bgmVolume: number;
   isSoundEnabled: boolean;
-  isAiVoiceEnabled: boolean;
   isAutoAdvanceDialogueEnabled: boolean;
   onBgmVolumeChange: (value: number) => void;
   onSoundEnabledChange: (value: boolean) => void;
-  onAiVoiceEnabledChange: (value: boolean) => void;
   onAutoAdvanceDialogueEnabledChange: (value: boolean) => void;
 }
 
@@ -237,22 +237,13 @@ export function WelcomeScreen({
   onSpectatorModeChange,
   bgmVolume,
   isSoundEnabled,
-  isAiVoiceEnabled,
   isAutoAdvanceDialogueEnabled,
   onBgmVolumeChange,
   onSoundEnabledChange,
-  onAiVoiceEnabledChange,
   onAutoAdvanceDialogueEnabledChange,
 }: WelcomeScreenProps) {
   const t = useTranslations();
   const { locale } = useAppLocale();
-  const discordInviteUrl = "https://discord.gg/ETkdZWgy";
-  const sponsorEmail = "zhihuang.oiloil@gmail.com";
-  const sponsorMailto = useMemo(() => {
-    const subject = t("welcome.sponsor.mailSubject");
-    const body = t("welcome.sponsor.mailBody");
-    return `mailto:${sponsorEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-  }, [sponsorEmail, t]);
 
   const {
     user,
@@ -278,10 +269,7 @@ export function WelcomeScreen({
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [isAccountOpen, setIsAccountOpen] = useState(false);
   const [isUserProfileOpen, setIsUserProfileOpen] = useState(false);
-  const [isSponsorOpen, setIsSponsorOpen] = useState(false);
   const [isSpringFestivalOpen, setIsSpringFestivalOpen] = useState(false);
-  const [isGroupOpen, setIsGroupOpen] = useState(false);
-  const [groupImgOk, setGroupImgOk] = useState<boolean | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isCustomCharacterOpen, setIsCustomCharacterOpen] = useState(false);
   const [isLowCreditOpen, setIsLowCreditOpen] = useState(false);
@@ -314,7 +302,6 @@ export function WelcomeScreen({
   const [difficulty, setDifficulty] = useAtom(difficultyAtom);
   const [playerCount, setPlayerCount] = useAtom(playerCountAtom);
   const [preferredRole, setPreferredRole] = useAtom(preferredRoleAtom);
-  const [githubStars, setGithubStars] = useState<number | null>(null);
   const springCampaignRemainingQuota = springCampaign?.remainingQuota ?? 0;
   const springCampaignTotalQuota = springCampaign?.totalQuota ?? 0;
   const springCampaignActiveNow = SPRING_CAMPAIGN_ENABLED
@@ -331,10 +318,6 @@ export function WelcomeScreen({
   const hasSpringQuota = springCampaignActiveNow && effectiveSpringRemainingQuota > 0;
   const mayHaveUnclaimedSpringQuota = springCampaignActiveNow && !isSpringCampaignForToday;
   const springFestivalSeenKey = `wolfcha:${SPRING_CAMPAIGN_CODE}:welcome_seen`;
-
-  useEffect(() => {
-    if (locale === "en") setIsGroupOpen(false);
-  }, [locale]);
 
   useEffect(() => {
     if (!SPRING_CAMPAIGN_ENABLED || !springCampaign?.active || !springCampaign.justClaimed) return;
@@ -426,20 +409,6 @@ export function WelcomeScreen({
     setFixedRoles(buildDefaultRoles(playerCount));
   }, [playerCount]);
 
-  // Fetch GitHub stars
-  useEffect(() => {
-    fetch('https://api.github.com/repos/oil-oil/wolfcha')
-      .then(res => res.json())
-      .then(data => {
-        if (data.stargazers_count !== undefined) {
-          setGithubStars(data.stargazers_count);
-        }
-      })
-      .catch(() => {
-        // Silently fail, stars will remain null
-      });
-  }, []);
-
   const roleConfigValid = useMemo(() => {
     if (fixedRoles.length !== playerCount) return false;
     if (fixedRoles.some((r) => !r)) return false;
@@ -492,9 +461,7 @@ export function WelcomeScreen({
     (REFERRAL_BONUS_ENABLED && isShareOpen) ||
     isAccountOpen ||
     isUserProfileOpen ||
-    isSponsorOpen ||
     (SPRING_CAMPAIGN_ENABLED && isSpringFestivalOpen) ||
-    isGroupOpen ||
     isMobileMenuOpen ||
     isCustomCharacterOpen ||
     isLowCreditOpen ||
@@ -575,15 +542,6 @@ export function WelcomeScreen({
       );
 
       window.setTimeout(() => particle.remove(), 1600);
-    }
-  };
-
-  const handleCopySponsorEmail = async () => {
-    try {
-      await navigator.clipboard.writeText(sponsorEmail);
-      toast.success(t("welcome.sponsor.copySuccess"), { description: sponsorEmail });
-    } catch {
-      toast(t("welcome.sponsor.copyFallback"), { description: sponsorEmail });
     }
   };
 
@@ -745,27 +703,6 @@ export function WelcomeScreen({
       });
   };
 
-  const handleOpenGroup = () => {
-    if (locale === "en") {
-      if (typeof window !== "undefined") {
-        window.open(discordInviteUrl, "_blank", "noopener,noreferrer");
-      }
-      return;
-    }
-    setIsGroupOpen(true);
-  };
-
-  const groupIcon =
-    locale === "en" ? (
-      <img
-        src="/Discord-Symbol-Blurple.svg"
-        alt="Discord"
-        className="h-4 w-4"
-      />
-    ) : (
-      <Users size={16} />
-    );
-
   return (
     <>
       <div className="wc-contract-screen selection:bg-[var(--color-accent)] selection:text-white">
@@ -785,11 +722,9 @@ export function WelcomeScreen({
           onSpectatorModeChange={onSpectatorModeChange}
           bgmVolume={bgmVolume}
           isSoundEnabled={isSoundEnabled}
-          isAiVoiceEnabled={isAiVoiceEnabled}
           isAutoAdvanceDialogueEnabled={isAutoAdvanceDialogueEnabled}
           onBgmVolumeChange={onBgmVolumeChange}
           onSoundEnabledChange={onSoundEnabledChange}
-          onAiVoiceEnabledChange={onAiVoiceEnabledChange}
           onAutoAdvanceDialogueEnabledChange={onAutoAdvanceDialogueEnabledChange}
         />
         <AuthModal open={isAuthOpen} onOpenChange={setIsAuthOpen} />
@@ -847,81 +782,6 @@ export function WelcomeScreen({
           onDeleteCharacter={customCharacters.deleteCharacter}
         />
 
-        <Dialog
-          open={locale === "en" ? false : isGroupOpen}
-          onOpenChange={(open) => {
-            if (locale === "en") return;
-            setIsGroupOpen(open);
-          }}
-        >
-          <DialogContent className="max-w-[420px]">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Users size={18} weight="duotone" />
-                {t("welcome.group.title")}
-              </DialogTitle>
-              <DialogDescription>{t("welcome.group.description")}</DialogDescription>
-            </DialogHeader>
-
-            <div className="mt-2 flex items-center justify-center">
-              {groupImgOk !== false && (
-                <img
-                  src="/group.png"
-                  alt={t("settings.about.group.alt")}
-                  className="w-full max-w-[280px] max-h-[50vh] rounded-md border-2 border-[var(--border-color)] bg-white object-contain"
-                  onLoad={() => setGroupImgOk(true)}
-                  onError={() => setGroupImgOk(false)}
-                />
-              )}
-              {groupImgOk === false && (
-                <div className="text-xs text-[var(--text-muted)]">{t("settings.about.group.missing")}</div>
-              )}
-            </div>
-          </DialogContent>
-        </Dialog>
-
-        <Dialog open={isSponsorOpen} onOpenChange={setIsSponsorOpen}>
-          <DialogContent className="max-w-[560px]">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Handshake size={18} weight="duotone" />
-                {t("welcome.sponsor.title")}
-              </DialogTitle>
-              <DialogDescription>
-                {t("welcome.sponsor.subtitle")}
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="space-y-3 text-sm leading-relaxed text-[var(--text-primary)]">
-              <p>
-                {t("welcome.sponsor.description")}
-              </p>
-              <ul className="list-disc pl-5 space-y-1 text-[var(--text-secondary)]">
-                <li>{t("welcome.sponsor.items.credits")}</li>
-                <li>{t("welcome.sponsor.items.media")}</li>
-                <li>{t("welcome.sponsor.items.collaboration")}</li>
-                <li>{t("welcome.sponsor.items.community")}</li>
-              </ul>
-              <p className="text-[var(--text-secondary)]">
-                {t("welcome.sponsor.note")}
-              </p>
-            </div>
-
-            <div className="flex flex-col sm:flex-row gap-2 sm:justify-end">
-              <Button type="button" variant="outline" onClick={handleCopySponsorEmail} className="gap-2">
-                <EnvelopeSimple size={16} />
-                {t("welcome.sponsor.copyEmail")}
-              </Button>
-              <Button asChild className="gap-2">
-                <a href={sponsorMailto} target="_blank" rel="noopener noreferrer">
-                  <EnvelopeSimple size={16} />
-                  {t("welcome.sponsor.sendEmail")}
-                </a>
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-
         {SPRING_CAMPAIGN_ENABLED && (
           <Dialog open={isSpringFestivalOpen} onOpenChange={setIsSpringFestivalOpen}>
             <DialogContent className="max-w-[560px] overflow-hidden border-2 border-[var(--border-color)] bg-[var(--bg-card)] p-0">
@@ -978,18 +838,6 @@ export function WelcomeScreen({
                 className="justify-start"
                 onClick={() => {
                   setIsMobileMenuOpen(false);
-                  setIsSponsorOpen(true);
-                }}
-              >
-                <Handshake size={16} />
-                {t("welcome.sponsor.action")}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="justify-start"
-                onClick={() => {
-                  setIsMobileMenuOpen(false);
                   setIsSetupOpen(true);
                 }}
               >
@@ -1023,100 +871,29 @@ export function WelcomeScreen({
                   {t("welcome.auth.signIn")}
                 </Button>
               )}
-              <Button asChild variant="outline" className="justify-start">
-                <a
-                  href="https://github.com/oil-oil/wolfcha"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  <GithubLogo size={16} />
-                  {t("welcome.github.title")}
-                </a>
-              </Button>
             </div>
           </DialogContent>
         </Dialog>
 
         {/* Scattered sponsor cards */}
         <div className="wc-sponsor-cards" aria-label={t("welcome.sponsor.showcaseLabel")}>
-          {/* Sponsor card - Bailian (左上) */}
           <SponsorCard
-            sponsorId="bailian"
-            href="https://bailian.console.aliyun.com/"
+            sponsorId="openhubs"
+            href="https://openhubs.xyz/"
             className="wc-sponsor-card wc-sponsor-card--with-logo wc-sponsor-card--top-left"
             rotate="4deg"
             delay={0.15}
-            logoSrc="/sponsor/bailian.png"
-            logoAlt="Bailian"
-            name="Bailian"
-            note={t("welcome.sponsor.cards.bailian")}
-          />
-
-          {/* Sponsor card - ZenMux (右下) */}
-          <SponsorCard
-            sponsorId="zenmux"
-            href="https://zenmux.ai/aboutus"
-            className="wc-sponsor-card wc-sponsor-card--with-logo wc-sponsor-card--right-bottom"
-            rotate="-4deg"
-            delay={0.6}
-            logoSrc="/sponsor/zenmux.png"
-            logoAlt="ZenMux"
-            name="ZenMux"
-            note={t("welcome.sponsor.cards.zenmux")}
-          />
-
-          {/* Sponsor card - Watcha (右侧居中) */}
-          <SponsorCard
-            sponsorId="watcha"
-            href="https://watcha.cn/"
-            className="wc-sponsor-card wc-sponsor-card--with-logo wc-sponsor-card--watcha"
-            rotate="5deg"
-            delay={0.45}
-            logoSrc="/sponsor/watcha.svg"
-            logoAlt="观猹"
-            name="观猹"
-            note={t("welcome.sponsor.cards.watcha")}
+            logoSrc="/sponsor/openhubs.svg"
+            logoAlt="openHubs"
+            logoClassName="wc-sponsor-card__logo--openhubs"
+            name="openHubs"
+            note={t("welcome.sponsor.cards.openHubs")}
           />
         </div>
 
         <div className="wc-welcome-actions absolute top-5 right-5 z-20 flex items-center gap-2">
           <div className="hidden sm:flex items-center gap-2">
             <LocaleSwitcher className="shrink-0" />
-            <a
-              href="https://github.com/oil-oil/wolfcha"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hidden sm:flex items-center gap-1.5 rounded-md border-2 border-[var(--border-color)] bg-[var(--bg-card)] px-2 py-1 text-[11px] text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-all group"
-              title="View on GitHub"
-            >
-              <GithubLogo size={15} className="group-hover:scale-110 transition-transform" />
-              <span className="hidden lg:inline">GitHub</span>
-              <span className="flex items-center gap-1 text-[var(--color-gold)]">
-                <Star size={12} weight="fill" className="group-hover:scale-110 transition-transform" />
-                <span className="font-serif text-xs font-bold tabular-nums tracking-tight" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
-                  {githubStars !== null ? githubStars.toLocaleString() : '···'}
-                </span>
-              </span>
-            </a>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setIsSponsorOpen(true)}
-              className="h-8 text-xs gap-2"
-            >
-              <Handshake size={16} />
-              {t("welcome.sponsor.action")}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleOpenGroup}
-              className="h-8 text-xs gap-2"
-            >
-              {groupIcon}
-              {t("welcome.group.title")}
-            </Button>
 
             {user ? (
               <button
@@ -1177,24 +954,6 @@ export function WelcomeScreen({
             <Button
               type="button"
               variant="outline"
-              onClick={() => setIsSponsorOpen(true)}
-              className="h-8 text-xs gap-2"
-            >
-              <Handshake size={16} />
-              {t("welcome.sponsor.short")}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleOpenGroup}
-              className="h-8 text-xs gap-2"
-            >
-              {groupIcon}
-              {t("welcome.group.short")}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
               onClick={() => setIsMobileMenuOpen(true)}
               className="h-8 w-8 px-0"
               aria-label={t("welcome.mobileMenu.more")}
@@ -1233,37 +992,15 @@ export function WelcomeScreen({
             {/* Mobile: inline sponsor stamps at top of paper */}
             <div className="wc-paper-sponsors sm:hidden">
               <a
-                href="https://bailian.console.aliyun.com/?ref=wolfcha"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="wc-paper-stamp"
-                style={{ "--stamp-rotate": "4deg" } as React.CSSProperties}
-                onClick={() => void trackSponsorClick("bailian")}
-              >
-                <img src="/sponsor/bailian.png" alt="百炼" className="wc-paper-stamp__logo" />
-                <span className="wc-paper-stamp__name">百炼</span>
-              </a>
-              <a
-                href="https://zenmux.ai/aboutus?ref=wolfcha"
+                href="https://openhubs.xyz/?ref=wolfcha"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="wc-paper-stamp"
                 style={{ "--stamp-rotate": "-3deg" } as React.CSSProperties}
-                onClick={() => void trackSponsorClick("zenmux")}
+                onClick={() => void trackSponsorClick("openhubs")}
               >
-                <img src="/sponsor/zenmux.png" alt="ZenMux" className="wc-paper-stamp__logo" />
-                <span className="wc-paper-stamp__name">ZenMux</span>
-              </a>
-              <a
-                href="https://watcha.cn/?ref=wolfcha"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="wc-paper-stamp"
-                style={{ "--stamp-rotate": "6deg" } as React.CSSProperties}
-                onClick={() => void trackSponsorClick("watcha")}
-              >
-                <img src="/sponsor/watcha.svg" alt="观猹" className="wc-paper-stamp__logo" />
-                <span className="wc-paper-stamp__name">观猹</span>
+                <img src="/sponsor/openhubs.svg" alt="openHubs" className="wc-paper-stamp__logo wc-paper-stamp__logo--openhubs" />
+                <span className="wc-paper-stamp__name">openHubs</span>
               </a>
             </div>
 

@@ -4162,6 +4162,20 @@ input[type="submit"]:not(:disabled),
   mix-blend-mode: multiply;
 }
 
+.wc-sponsor-card__logo--openhubs {
+  width: 58px;
+  height: 58px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.92);
+  padding: 5px;
+  opacity: 1;
+  filter: none;
+  mix-blend-mode: normal;
+  box-shadow:
+    0 0 0 1px rgba(20, 20, 20, 0.14),
+    0 6px 14px rgba(20, 20, 20, 0.14);
+}
+
 /* Card positions - scattered around the edges */
 .wc-sponsor-card--left-center {
   top: 50%;
@@ -4307,6 +4321,17 @@ input[type="submit"]:not(:disabled),
   border-radius: 6px;
   filter: grayscale(1) brightness(0.4) contrast(1.2);
   mix-blend-mode: multiply;
+}
+
+.wc-paper-stamp__logo--openhubs {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.94);
+  padding: 3px;
+  filter: none;
+  mix-blend-mode: normal;
+  box-shadow: 0 0 0 1px rgba(20, 20, 20, 0.12);
 }
 
 .wc-paper-stamp__name {

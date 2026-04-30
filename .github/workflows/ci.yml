@@ -1,0 +1,101 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:54321"
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY: "ci-publishable-key"
+      SUPABASE_SERVICE_ROLE_KEY: "ci-service-role-key"
+      TOKENDANCE_API_KEY: "ci-tokendance-key"
+      TOKENDANCE_BASE_URL: "http://127.0.0.1:8080"
+      MINIMAX_API_KEY: "ci-minimax-key"
+      MINIMAX_GROUP_ID: "ci-minimax-group"
+      ZPAYZ_PID: "ci-zpayz-pid"
+      ZPAYZ_KEY: "ci-zpayz-key"
+      ADMIN_EMAILS: "ci@example.com"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.32.1
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type check
+        run: pnpm exec tsc --noEmit
+
+      - name: Lint
+        run: pnpm lint
+        continue-on-error: true
+
+      - name: Build
+        run: pnpm build
+
+  deploy-vercel:
+    name: Deploy to Vercel
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.ENABLE_VERCEL_DEPLOY == 'true' }}
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.32.1
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Pull Vercel environment
+        run: pnpm dlx vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+
+      - name: Build Vercel output
+        run: pnpm dlx vercel build --prod --token="$VERCEL_TOKEN"
+
+      - name: Deploy prebuilt output
+        run: pnpm dlx vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN"

@@ -415,9 +415,8 @@ export function DialogArea({
   // When a segment's audio is ready, useDayPhase calls addToQueue after prefetch completes.
   // This avoids the previous duplicate request issue (prefetch + DialogArea both hitting /api/tts).
 
-  // 处理跳过/继续：截断语音并进入下一句
+  // 处理继续：角色语音开启时由上层等待当前音频结束后再推进
   const handleAdvance = useCallback(() => {
-    audioManager.stopCurrent();
     onAdvanceDialogue?.();
   }, [onAdvanceDialogue]);
 

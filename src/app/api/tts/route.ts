@@ -9,6 +9,22 @@ import { DEFAULT_VOICE_ID } from "@/lib/voice-constants";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const asRecord = (value: unknown): Record<string, unknown> | null => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+};
+
+const DEFAULT_TTS_SPEECH_RATE = 1.2;
+
+const resolveTtsSpeechRate = () => {
+  const raw = process.env.MINIMAX_TTS_SPEED;
+  if (!raw) return DEFAULT_TTS_SPEECH_RATE;
+
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed)) return DEFAULT_TTS_SPEECH_RATE;
+  return Math.min(2, Math.max(0.5, parsed));
+};
+
 export async function POST(req: NextRequest) {
   const auth = await authenticateRequest(req as unknown as Request);
   if ("error" in auth) return auth.error;
@@ -22,7 +38,8 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const parsed = await req.json().catch(() => ({} as any));
+    const parsedRaw: unknown = await req.json().catch(() => ({}));
+    const parsed = asRecord(parsedRaw) ?? {};
     const text = typeof parsed?.text === "string" ? parsed.text : String(parsed?.text ?? "");
     const voiceId = typeof parsed?.voiceId === "string" ? parsed.voiceId : String(parsed?.voiceId ?? "");
 
@@ -38,7 +55,7 @@ export async function POST(req: NextRequest) {
     const apiKey = headerApiKey || process.env.MINIMAX_API_KEY;
     const groupId = headerGroupId || process.env.MINIMAX_GROUP_ID;
 
-    if (!apiKey || !groupId) {
+    if (!apiKey) {
       console.error("Missing MiniMax credentials");
       return NextResponse.json({ error: "Server configuration error" }, { status: 500 });
     }
@@ -46,7 +63,18 @@ export async function POST(req: NextRequest) {
     // MiniMax T2A V2 API Endpoint
     // 参考文档：https://platform.minimaxi.com/document/T2A%20V2
     const baseUrlFromEnv = process.env.MINIMAX_API_BASE_URL;
-    const primaryBaseUrl = baseUrlFromEnv || "https://api.minimax.chat";
+    const primaryBaseUrl = (baseUrlFromEnv || "https://api.minimax.chat").replace(/\/+$/, "");
+
+    const isNativeMiniMaxBaseUrl = (baseUrl: string) => {
+      try {
+        const hostname = new URL(baseUrl).hostname.toLowerCase();
+        return hostname.endsWith("minimax.chat") || hostname.endsWith("minimaxi.com");
+      } catch {
+        return false;
+      }
+    };
+
+    const useOpenAiSpeechEndpoint = !isNativeMiniMaxBaseUrl(primaryBaseUrl);
 
     const candidateBaseUrls = [primaryBaseUrl];
     if (!baseUrlFromEnv) {
@@ -58,13 +86,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const payload = {
-      model: process.env.MINIMAX_TTS_MODEL || "speech-01-turbo",
+    const ttsModel = process.env.MINIMAX_TTS_MODEL || "speech-01-turbo";
+    const speechRate = resolveTtsSpeechRate();
+
+    const buildNativePayload = (voiceIdForRequest: string) => ({
+      model: ttsModel,
       text: normText,
       stream: false, // 暂时不使用流式，简化前端处理
       voice_setting: {
-        voice_id: normVoiceId,
-        speed: 1.0,
+        voice_id: voiceIdForRequest,
+        speed: speechRate,
         vol: 1.0,
         pitch: 0,
       },
@@ -74,7 +105,15 @@ export async function POST(req: NextRequest) {
         format: "mp3",
         channel: 1,
       },
-    };
+    });
+
+    const buildOpenAiSpeechPayload = (voiceIdForRequest: string) => ({
+      model: ttsModel,
+      input: normText,
+      voice: voiceIdForRequest,
+      speed: speechRate,
+      output_format: "hex",
+    });
 
     const requestBuffer = async (inputUrl: string, init: {
       method: "GET" | "POST";
@@ -207,23 +246,31 @@ export async function POST(req: NextRequest) {
     };
 
     const requestMiniMax = async (voiceIdForRequest: string) => {
-      payload.voice_setting.voice_id = voiceIdForRequest;
       let response: { statusCode: number; headers: IncomingHttpHeaders; body: Buffer } | null = null;
       let lastError: unknown = null;
 
       for (const baseUrl of candidateBaseUrls) {
-        const url = `${baseUrl}/v1/t2a_v2?GroupId=${encodeURIComponent(groupId)}`;
+        const normalizedBaseUrl = baseUrl.replace(/\/+$/, "");
+        const url = useOpenAiSpeechEndpoint
+          ? `${normalizedBaseUrl}/v1/audio/speech`
+          : `${normalizedBaseUrl}/v1/t2a_v2?GroupId=${encodeURIComponent(groupId ?? "")}`;
+        const headers: Record<string, string> = {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+          "Accept-Encoding": "identity",
+        };
+        if (!useOpenAiSpeechEndpoint && groupId) {
+          headers.GroupId = groupId;
+        }
+        const body = useOpenAiSpeechEndpoint
+          ? buildOpenAiSpeechPayload(voiceIdForRequest)
+          : buildNativePayload(voiceIdForRequest);
 
         try {
           response = await requestBuffer(url, {
             method: "POST",
-            headers: {
-              Authorization: `Bearer ${apiKey}`,
-              "Content-Type": "application/json",
-              GroupId: groupId,
-              "Accept-Encoding": "identity",
-            },
-            body: JSON.stringify(payload),
+            headers,
+            body: JSON.stringify(body),
             timeoutMs: 30000,
           });
           break;
@@ -266,7 +313,7 @@ export async function POST(req: NextRequest) {
       const contentType = response.headers["content-type"];
 
       if (typeof contentType === "string" && contentType.includes("application/json")) {
-        let json: any;
+        let json: unknown;
         try {
           json = JSON.parse(response.body.toString("utf8"));
         } catch (e) {
@@ -278,9 +325,14 @@ export async function POST(req: NextRequest) {
           );
         }
 
-        if (json.base_resp && json.base_resp.status_code !== 0) {
-          const code = Number(json.base_resp.status_code);
-          const msg = String(json.base_resp.status_msg || "");
+        const jsonRecord = asRecord(json) ?? {};
+        const baseResp = asRecord(jsonRecord.base_resp);
+        const dataRecord = asRecord(jsonRecord.data);
+        const audioRecord = asRecord(jsonRecord.audio);
+
+        if (baseResp && baseResp.status_code !== 0) {
+          const code = Number(baseResp.status_code);
+          const msg = String(baseResp.status_msg || "");
 
           if (code === 2054 && attempt === 0) {
             const fallback = pickFallbackVoiceId(usedVoiceId);
@@ -309,13 +361,13 @@ export async function POST(req: NextRequest) {
         }
 
         const dataStr: unknown =
-          (typeof json.data === "string" ? json.data : undefined) ??
-          json.data?.audio ??
-          json.data?.data ??
-          json.audio?.data ??
-          json.audio_data;
+          (typeof jsonRecord.data === "string" ? jsonRecord.data : undefined) ??
+          dataRecord?.audio ??
+          dataRecord?.data ??
+          audioRecord?.data ??
+          jsonRecord.audio_data;
 
-        const audioUrl: unknown = json.audio?.url ?? json.data?.url ?? json.url;
+        const audioUrl: unknown = audioRecord?.url ?? dataRecord?.url ?? jsonRecord.url;
 
         if (typeof audioUrl === "string" && audioUrl.startsWith("http")) {
           const audioResp = await requestBuffer(audioUrl, {

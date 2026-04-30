@@ -104,7 +104,7 @@ export function useDialogueManager() {
         text: queue.segments[nextIndex],
         isStreaming: true,
       });
-      return { finished: false, segment: queue.segments[nextIndex] };
+      return { finished: false, segment: queue.segments[nextIndex], player: queue.player };
     } else if (queue.isStreaming && !queue.isFinalized) {
       // 流式未完成，等待更多段落
       queue.awaitingNextSegment = true;
@@ -179,15 +179,15 @@ export function useDialogueManager() {
   /** 向流式发言队列追加段落 */
   const appendToSpeechQueue = useCallback((segment: string) => {
     const queue = speechQueueRef.current;
-    if (!queue) return;
+    if (!queue) return false;
 
     const trimmed = segment.trim();
-    if (!trimmed) return;
+    if (!trimmed) return false;
 
     // Deduplication: prevent adding the same segment twice
     // This can happen due to streaming parser edge cases
     if (queue.segments.includes(trimmed)) {
-      return;
+      return false;
     }
 
     // 在添加新段落前检查是否在等待下一段
@@ -211,6 +211,8 @@ export function useDialogueManager() {
         isStreaming: true,
       });
     }
+
+    return shouldDisplayImmediately;
   }, []);
 
   /** 标记流式发言队列已完成接收 */

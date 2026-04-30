@@ -101,6 +101,7 @@
       "showcaseLabel": "赞助商展示",
       "cards": {
         "openCreator": "OpenCreator 帮助我们生成夜晚所有的角色立绘",
+        "openHubs": "openHubs 为我们提供模型能力",
         "bailian": "百炼为我们提供部分 AI 模型能力支持",
         "zenmux": "聚合全球顶尖大模型，为每一场逻辑博弈注入敏锐灵魂。",
         "watcha": "观猹为猹杀提供AI模型能力与展示平台"
@@ -199,28 +200,10 @@
   "settings": {
     "title": "设置",
     "description": "调整偏好并导出日志",
-    "about": {
-      "title": "关于我们",
-      "description": "了解 Wolfcha",
-      "appName": "Wolfcha（猹人杀）",
-      "version": "版本号：v{version}",
-      "group": {
-        "title": "加入用户群",
-        "description": "扫码入群，反馈问题与建议",
-        "alt": "Wolfcha 用户群",
-        "missing": "未找到群组图片（public/group.png）"
-      },
-      "back": "返回设置",
-      "cardTitle": "关于我们",
-      "cardDescription": "Logo、版本号、入群二维码",
-      "view": "查看"
-    },
     "audio": {
       "bgmVolume": "背景音量",
       "masterSwitch": "总开关",
       "masterDescription": "关闭后将静音所有音效",
-      "aiVoice": "角色配音",
-      "aiVoiceDescription": "控制 AI 角色语音播放",
       "autoAdvance": "自动播放对话",
       "autoAdvanceDesc": "开启后将自动推进对话，无需按回车"
     },
@@ -2144,12 +2127,12 @@
     "payAsYouGo": {
       "title": "购买游戏额度",
       "description": "无需订阅，按需购买单次游戏额度。每个额度可进行一局游戏。",
-      "wechatPayHint": "微信/支付宝支付（每局¥2）可联系开发人员",
+      "wechatPayHint": "微信/支付宝支付（每局 ¥1）可联系开发人员",
       "contactDeveloper": "联系开发者",
       "wechatQrTitle": "开发者微信",
       "wechatQrDescription": "扫码添加开发者微信，备注「狼人杀充值」即可",
       "longPressToSave": "长按图片可保存到相册",
-      "pricePerGame": "每局 ${price}",
+      "pricePerGame": "每局 ¥{price}",
       "quantity": "购买数量",
       "quantityPlaceholder": "输入数量",
       "total": "合计",
@@ -2157,11 +2140,11 @@
       "minQuantity": "最少购买 10 次",
       "maxQuantity": "最多购买 100 次",
       "minQuantityHint": "每次购买最少需要 10 个额度",
-      "redirecting": "正在跳转到 Stripe...",
+      "redirecting": "正在跳转到支付页面...",
       "error": "创建支付链接失败",
       "purchaseTitle": "购买兑换码",
       "purchaseDesc": "扫码或点击下方链接前往链动小铺购买兑换码",
-      "openPurchaseLink": "打开购买链接（每局 ¥1.5）",
+      "openPurchaseLink": "打开购买链接（每局 ¥1）",
       "redeemTitle": "兑换码兑换",
       "redeemPlaceholder": "wolf-XXXX-XXXX",
       "redeemButton": "兑换",
@@ -2314,6 +2297,19 @@
       "importFailed": "导入失败",
       "copied": "已复制到剪贴板",
       "copyFailed": "复制失败"
+    }
+  },
+  "gameVoice": {
+    "title": "角色语音",
+    "description": "开启语音后一局将消耗两局额度；关闭语音仍按一局额度。",
+    "enable": "开启语音",
+    "disable": "关闭语音",
+    "charging": "扣费中...",
+    "toasts": {
+      "creditFail": {
+        "title": "语音开启失败",
+        "description": "额度不足或扣费失败，充值后再开启角色语音。"
+      }
     }
   },
   "lowCreditModal": {

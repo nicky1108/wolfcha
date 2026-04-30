@@ -10,6 +10,7 @@ import {
   getSpringQuotaExpiresAtIso,
   isSpringCampaignActive,
 } from "@/lib/spring-campaign";
+import { normalizeGameCreditCost } from "@/lib/game-credit-cost";
 
 export const dynamic = "force-dynamic";
 
@@ -41,6 +42,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const body = (await request.json().catch(() => ({}))) as { cost?: unknown };
+  const requestedCost = normalizeGameCreditCost(body.cost);
+
   // Demo mode: skip credit consumption entirely
   if (await isDemoModeActiveServer()) {
     const { data } = await supabaseAdmin
@@ -54,6 +58,8 @@ export async function POST(request: Request) {
       credits: creditsRow?.credits ?? 0,
       bypassed: true,
       demoMode: true,
+      consumedCost: 0,
+      requestedCost,
     });
   }
 
@@ -109,6 +115,8 @@ export async function POST(request: Request) {
       credits: creditsRow?.credits ?? 0,
       bypassed: true,
       usedTemporaryQuota: false,
+      consumedCost: 0,
+      requestedCost,
       campaign: buildCampaignPayload(campaignRow),
     });
   }
@@ -143,13 +151,44 @@ export async function POST(request: Request) {
     }
   }
 
-  if (springCampaignActive && quotaDate && campaignRow) {
+  const { data: paidCreditsData, error: paidCreditsReadError } = await supabaseAdmin
+    .from("user_credits")
+    .select("credits")
+    .eq("id", user.id)
+    .single();
+
+  if (paidCreditsReadError) {
+    return NextResponse.json({ error: "Failed to read credits" }, { status: 500 });
+  }
+
+  const paidCreditsRow = paidCreditsData as { credits: number } | null;
+  const campaignRemaining =
+    springCampaignActive && quotaDate && campaignRow && new Date(campaignRow.expires_at) > now
+      ? Math.max(campaignRow.granted_quota - campaignRow.consumed_quota, 0)
+      : 0;
+  const paidCredits = paidCreditsRow?.credits ?? 0;
+
+  if (campaignRemaining + paidCredits < requestedCost) {
+    return NextResponse.json(
+      {
+        error: "Insufficient credits",
+        campaign: buildCampaignPayload(campaignRow),
+      },
+      { status: 400 }
+    );
+  }
+
+  let remainingCost = requestedCost;
+  let consumedTemporaryQuota = 0;
+
+  if (springCampaignActive && quotaDate && campaignRow && remainingCost > 0) {
     let latestCampaignRow = campaignRow;
     for (let attempt = 0; attempt < 2; attempt += 1) {
       const remainingBefore = latestCampaignRow.granted_quota - latestCampaignRow.consumed_quota;
       if (remainingBefore <= 0 || new Date(latestCampaignRow.expires_at) <= now) break;
 
-      const nextConsumed = latestCampaignRow.consumed_quota + 1;
+      const quotaToConsume = Math.min(remainingBefore, remainingCost);
+      const nextConsumed = latestCampaignRow.consumed_quota + quotaToConsume;
       const { data: updatedCampaignData, error: campaignUpdateError } = await supabaseAdmin
         .from("campaign_daily_quota")
         .update({
@@ -165,19 +204,29 @@ export async function POST(request: Request) {
 
       if (!campaignUpdateError && updatedCampaignData) {
         const updatedCampaignRow = updatedCampaignData as CampaignQuotaRow;
-        const { data: creditsData } = await supabaseAdmin
-          .from("user_credits")
-          .select("credits")
-          .eq("id", user.id)
-          .single();
-        const creditsRow = creditsData as { credits: number } | null;
+        remainingCost -= quotaToConsume;
+        consumedTemporaryQuota += quotaToConsume;
+        campaignRow = updatedCampaignRow;
 
-        return NextResponse.json({
-          success: true,
-          credits: creditsRow?.credits ?? 0,
-          usedTemporaryQuota: true,
-          campaign: buildCampaignPayload(updatedCampaignRow),
-        });
+        if (remainingCost <= 0) {
+          const { data: creditsData } = await supabaseAdmin
+            .from("user_credits")
+            .select("credits")
+            .eq("id", user.id)
+            .single();
+          const creditsRow = creditsData as { credits: number } | null;
+
+          return NextResponse.json({
+            success: true,
+            credits: creditsRow?.credits ?? 0,
+            usedTemporaryQuota: true,
+            consumedCost: requestedCost,
+            campaign: buildCampaignPayload(updatedCampaignRow),
+          });
+        }
+
+        latestCampaignRow = updatedCampaignRow;
+        break;
       }
 
       const { data: refreshedCampaignData } = await supabaseAdmin
@@ -207,7 +256,7 @@ export async function POST(request: Request) {
     }
 
     const creditsRow = data as { credits: number } | null;
-    if (!creditsRow || creditsRow.credits <= 0) {
+    if (!creditsRow || creditsRow.credits < remainingCost) {
       return NextResponse.json(
         {
           error: "Insufficient credits",
@@ -217,7 +266,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const nextCredits = creditsRow.credits - 1;
+    const nextCredits = creditsRow.credits - remainingCost;
     const updatePayload: Partial<Database["public"]["Tables"]["user_credits"]["Row"]> = {
       credits: nextCredits,
       updated_at: new Date().toISOString(),
@@ -239,7 +288,9 @@ export async function POST(request: Request) {
       return NextResponse.json({
         success: true,
         credits: updatedCreditsRow.credits,
-        usedTemporaryQuota: false,
+        usedTemporaryQuota: consumedTemporaryQuota > 0,
+        consumedCost: requestedCost,
+        paidCreditsConsumed: remainingCost,
         campaign: buildCampaignPayload(campaignRow),
       });
     }

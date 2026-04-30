@@ -348,7 +348,8 @@ function AvatarShowcase({ isZh }: { isZh: boolean }) {
   };
 
   useEffect(() => {
-    setAvatars(generateAvatars());
+    const timer = window.setTimeout(() => setAvatars(generateAvatars()), 0);
+    return () => window.clearTimeout(timer);
   }, []);
 
   const handleRefresh = () => {
@@ -491,8 +492,8 @@ export function LandingContent() {
     {
       q: isZh ? "如何调整游戏设置？" : "How do I adjust game settings?",
       a: isZh
-        ? "点击游戏界面右上角的设置图标，可以调整背景音乐音量、开关音效、AI 语音朗读、自动推进对话等选项。"
-        : "Click the settings icon in the top right corner of the game interface to adjust BGM volume, sound effects, AI voice reading, auto-advance dialogue, and more.",
+        ? "点击游戏界面右上角的设置图标，可以调整背景音乐音量、开关音效、自动推进对话等选项；角色语音可在对话框上方开启。"
+        : "Click the settings icon in the top right corner of the game interface to adjust BGM volume, sound effects, auto-advance dialogue, and more. Character voice is controlled above the dialogue box.",
     },
     {
       q: isZh ? "如何查看我的游戏数据？" : "How do I view my game data?",

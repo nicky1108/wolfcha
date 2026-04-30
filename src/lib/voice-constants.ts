@@ -104,3 +104,14 @@ export function resolveVoiceId(
 
   return normGender === "female" ? defaults.female : defaults.male;
 }
+
+export function resolveFixedVoiceId(
+  input: string | undefined,
+  gender: "male" | "female" | "nonbinary" | undefined,
+  age?: number,
+  locale: AppLocale = "zh"
+): string {
+  const fixed = input?.trim();
+  if (fixed) return fixed;
+  return resolveVoiceId(undefined, gender, age, locale);
+}

@@ -101,6 +101,7 @@
       "showcaseLabel": "Sponsor showcase",
       "cards": {
         "openCreator": "OpenCreator helps us generate all night-time character art",
+        "openHubs": "openHubs provides us with AI model capabilities",
         "bailian": "Dashscope provides us with AI model capabilities",
         "zenmux": "Aggregating top global AI models to power every strategic showdown.",
         "watcha": "Watcha provides AI model capabilities and showcase platform"
@@ -199,28 +200,10 @@
   "settings": {
     "title": "Settings",
     "description": "Adjust preferences and export logs",
-    "about": {
-      "title": "About",
-      "description": "Learn about Wolfcha",
-      "appName": "Wolfcha",
-      "version": "Version: v{version}",
-      "group": {
-        "title": "Join the community",
-        "description": "Scan to join and share feedback",
-        "alt": "Wolfcha community group",
-        "missing": "Group image not found (public/group.png)"
-      },
-      "back": "Back to settings",
-      "cardTitle": "About",
-      "cardDescription": "Logo, version, and community QR",
-      "view": "View"
-    },
     "audio": {
       "bgmVolume": "Background volume",
       "masterSwitch": "Master switch",
       "masterDescription": "Mute all sound effects when off",
-      "aiVoice": "Character voice",
-      "aiVoiceDescription": "Control AI character voice playback",
       "autoAdvance": "Auto-advance dialogue",
       "autoAdvanceDesc": "Automatically advance dialogue without pressing Enter"
     },
@@ -2062,12 +2045,12 @@
     "payAsYouGo": {
       "title": "Buy Game Credits",
       "description": "Purchase single-game credits without a subscription. Each credit grants one game session.",
-      "wechatPayHint": "WeChat/Alipay (¥2/game) - contact developer",
+      "wechatPayHint": "WeChat/Alipay (¥1/game) - contact developer",
       "contactDeveloper": "Contact",
       "wechatQrTitle": "Developer WeChat",
       "wechatQrDescription": "Scan to add developer on WeChat, note 'Wolfcha credits'",
       "longPressToSave": "Long press to save image",
-      "pricePerGame": "${price} per game",
+      "pricePerGame": "¥{price} per game",
       "quantity": "Quantity",
       "quantityPlaceholder": "Enter quantity",
       "total": "Total",
@@ -2075,11 +2058,11 @@
       "minQuantity": "Minimum 10 credits",
       "maxQuantity": "Maximum 100 credits",
       "minQuantityHint": "Minimum purchase is 10 credits per transaction",
-      "redirecting": "Redirecting to Stripe...",
+      "redirecting": "Redirecting to payment...",
       "error": "Failed to create payment link",
       "purchaseTitle": "Purchase Redemption Code",
       "purchaseDesc": "Scan or click the link below to purchase a redemption code",
-      "openPurchaseLink": "Open Purchase Link (¥1.5/game)",
+      "openPurchaseLink": "Open Purchase Link (¥1/game)",
       "redeemTitle": "Redeem Code",
       "redeemPlaceholder": "wolf-XXXX-XXXX",
       "redeemButton": "Redeem",
@@ -2232,6 +2215,19 @@
       "importFailed": "Import failed",
       "copied": "Copied to clipboard",
       "copyFailed": "Copy failed"
+    }
+  },
+  "gameVoice": {
+    "title": "Character Voice",
+    "description": "Voice mode costs 2 game credits per match. Text mode costs 1 credit.",
+    "enable": "Enable voice",
+    "disable": "Disable voice",
+    "charging": "Charging...",
+    "toasts": {
+      "creditFail": {
+        "title": "Could not enable voice",
+        "description": "Insufficient credits or charge failed. Recharge before enabling character voice."
+      }
     }
   },
   "lowCreditModal": {

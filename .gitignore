@@ -45,3 +45,4 @@ ai-logs.jsonl
 
 # windsurf rules (local only)
 .windsurf/rules/renewlog.md
+.omx/

@@ -13,6 +13,7 @@ export function makeAudioTaskId(voiceId: string, text: string) {
 }
 
 type PlayState = "idle" | "playing" | "loading";
+type AudioTaskEvent = { type: "start" | "end"; task: AudioTask };
 
 class AudioManager {
   private queue: AudioTask[] = [];
@@ -22,6 +23,7 @@ class AudioManager {
   private cache = new Map<string, { blob: Blob; durationMs?: number }>();
   private inFlight = new Map<string, Promise<void>>();
   private enabled = false;
+  private listeners = new Set<(event: AudioTaskEvent) => void>();
 
   // Callbacks
   private onPlayStart: ((playerId: string) => void) | null = null;
@@ -73,6 +75,27 @@ class AudioManager {
 
   isEnabled(): boolean {
     return this.enabled;
+  }
+
+  isTaskActive(taskId: string): boolean {
+    return this.enabled && this.currentTask?.id === taskId && this.state !== "idle";
+  }
+
+  subscribe(listener: (event: AudioTaskEvent) => void): () => void {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
+  private emit(event: AudioTaskEvent) {
+    this.listeners.forEach((listener) => {
+      try {
+        listener(event);
+      } catch (error) {
+        console.error("AudioManager listener error:", error);
+      }
+    });
   }
 
   /**
@@ -245,14 +268,16 @@ class AudioManager {
       const startPlayback = async () => {
         this.state = "playing";
         this.onPlayStart?.(task.playerId);
+        this.emit({ type: "start", task });
         await audio.play();
       };
 
       try {
         await startPlayback();
-      } catch (e: any) {
-        const name = e?.name || "";
-        const msg = String(e?.message || e || "");
+      } catch (e: unknown) {
+        const errorLike = e instanceof Error ? e : null;
+        const name = errorLike?.name || "";
+        const msg = errorLike?.message || String(e || "");
         const isBlocked = name === "NotAllowedError" || msg.includes("user gesture") || msg.includes("not allowed");
         if (!isBlocked) throw e;
 
@@ -283,6 +308,7 @@ class AudioManager {
     URL.revokeObjectURL(url);
     if (this.currentTask === task) {
       this.onPlayEnd?.(task.playerId);
+      this.emit({ type: "end", task });
       this.currentTask = null;
       this.currentAudio = null;
       this.state = "idle";

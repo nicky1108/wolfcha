@@ -39,11 +39,9 @@ interface GameSetupModalProps {
   onSpectatorModeChange: (value: boolean) => void;
   bgmVolume: number;
   isSoundEnabled: boolean;
-  isAiVoiceEnabled: boolean;
   isAutoAdvanceDialogueEnabled: boolean;
   onBgmVolumeChange: (value: number) => void;
   onSoundEnabledChange: (value: boolean) => void;
-  onAiVoiceEnabledChange: (value: boolean) => void;
   onAutoAdvanceDialogueEnabledChange: (value: boolean) => void;
 }
 
@@ -61,11 +59,9 @@ export function GameSetupModal({
   onSpectatorModeChange,
   bgmVolume,
   isSoundEnabled,
-  isAiVoiceEnabled,
   isAutoAdvanceDialogueEnabled,
   onBgmVolumeChange,
   onSoundEnabledChange,
-  onAiVoiceEnabledChange,
   onAutoAdvanceDialogueEnabledChange,
 }: GameSetupModalProps) {
   const t = useTranslations();
@@ -207,11 +203,9 @@ export function GameSetupModal({
             <SoundSettingsSection
               bgmVolume={bgmVolume}
               isSoundEnabled={isSoundEnabled}
-              isAiVoiceEnabled={isAiVoiceEnabled}
               isAutoAdvanceDialogueEnabled={isAutoAdvanceDialogueEnabled}
               onBgmVolumeChange={onBgmVolumeChange}
               onSoundEnabledChange={onSoundEnabledChange}
-              onAiVoiceEnabledChange={onAiVoiceEnabledChange}
               onAutoAdvanceDialogueEnabledChange={onAutoAdvanceDialogueEnabledChange}
             />
           </div>
