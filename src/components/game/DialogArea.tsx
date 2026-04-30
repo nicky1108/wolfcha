@@ -34,7 +34,7 @@ const ROLE_PORTRAIT_MAP: Record<string, string> = {
   Hunter: '/roles/hunter.png',
   Guard: '/roles/guard.png',
   Idiot: '/roles/idiot.png',
-  Villager: '/roles/villager.png',
+  Villager: '/roles/guard.png',
 };
 
 // 预加载所有职业立绘

@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { cookies, headers } from "next/headers";
-import Script from "next/script";
 import "./globals.css";
 import { Toaster } from "sonner";
 import { Analytics } from "@vercel/analytics/next"
@@ -107,20 +106,6 @@ export default async function RootLayout({
   return (
     <html lang={localeToHtmlLang[initialLocale]} suppressHydrationWarning>
       <Analytics />
-      <head>
-        <Script
-          src="https://www.googletagmanager.com/gtag/js?id=G-3SSRH8KPLY"
-          strategy="afterInteractive"
-        />
-        <Script id="ga-init" strategy="afterInteractive">
-          {`
-            window.dataLayer = window.dataLayer || [];
-            function gtag(){dataLayer.push(arguments);}
-            gtag('js', new Date());
-            gtag('config', 'G-3SSRH8KPLY');
-          `}
-        </Script>
-      </head>
       <body className="antialiased">
         <JsonLd data={getWebsiteJsonLd()} />
         <JsonLd data={getGameJsonLd()} />
