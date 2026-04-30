@@ -140,6 +140,28 @@ server {
         add_header X-Wolfcha-Static-Cache \$upstream_cache_status always;
     }
 
+    location ~ ^/(bgm|audio/narrator)/ {
+        proxy_pass http://127.0.0.1:${APP_PORT};
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_cache wolfcha_static;
+        proxy_cache_key "\$scheme|\$request_method|\$host|\$request_uri";
+        proxy_cache_lock on;
+        proxy_cache_revalidate on;
+        proxy_cache_use_stale error timeout updating http_500 http_502 http_503 http_504;
+        proxy_cache_valid 200 30d;
+        proxy_force_ranges on;
+        proxy_ignore_headers Cache-Control Expires Set-Cookie;
+        proxy_hide_header Set-Cookie;
+        proxy_hide_header Cache-Control;
+        proxy_hide_header Expires;
+        add_header Cache-Control "public, max-age=3600" always;
+        add_header X-Wolfcha-Media-Cache \$upstream_cache_status always;
+    }
+
     location / {
         proxy_pass http://127.0.0.1:${APP_PORT};
         proxy_http_version 1.1;
@@ -187,6 +209,24 @@ warm_static_assets() {
 
   rm -f "$page_tmp"
   log "Warmed ${warmed} Next static assets"
+}
+
+warm_audio_assets() {
+  require_command curl
+
+  local warmed=0
+  local asset url
+  while IFS= read -r asset; do
+    [ -n "$asset" ] || continue
+    url="https://${DOMAIN}${asset}"
+    if curl -fsS --resolve "${DOMAIN}:443:127.0.0.1" "$url" -o /dev/null; then
+      warmed=$((warmed + 1))
+    else
+      log "Audio asset warmup missed: ${asset}"
+    fi
+  done < <(find public/bgm public/audio/narrator -type f -name '*.mp3' 2>/dev/null | sed 's#^public##' | sort -u)
+
+  log "Warmed ${warmed} audio assets"
 }
 
 start_application() {
@@ -237,6 +277,7 @@ main() {
   wait_for_health
   write_nginx_site
   warm_static_assets
+  warm_audio_assets
 }
 
 main "$@"
