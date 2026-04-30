@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import type { User } from "@supabase/supabase-js";
+import type { AppUser } from "@/lib/auth-server";
 import { authenticateAdminRequest, getConfiguredAdminEmails } from "@/lib/admin-auth";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import type { Database } from "@/types/database";
@@ -31,7 +31,7 @@ function sortByDateDesc<T>(items: T[], getDate: (item: T) => string | null | und
   });
 }
 
-function getUserEmailMap(users: User[]): Map<string, string> {
+function getUserEmailMap(users: AppUser[]): Map<string, string> {
   return new Map(users.map((user) => [user.id, user.email || ""]));
 }
 

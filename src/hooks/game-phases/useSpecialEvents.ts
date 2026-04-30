@@ -161,7 +161,7 @@ export function useSpecialEvents(
 
     setGameState(currentState);
     
-    // 更新游戏会话数据（前端直接调用 Supabase）
+    // 更新游戏会话数据（前端调用服务端 API）
     const winnerType = winner === "village" ? "villager" : "wolf";
     gameSessionTracker.end(winnerType, true).catch((err) => {
       console.error("[game-session] Failed to end:", err);

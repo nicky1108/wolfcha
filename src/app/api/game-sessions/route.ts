@@ -64,7 +64,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error(error);
     return NextResponse.json(
-      { error: "Server misconfiguration: missing SUPABASE_SERVICE_ROLE_KEY" },
+      { error: "Server misconfiguration: missing DATABASE_URL or AUTH_SECRET" },
       { status: 500 }
     );
   }

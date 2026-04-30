@@ -25,9 +25,8 @@ jobs:
     timeout-minutes: 20
     env:
       NEXT_TELEMETRY_DISABLED: "1"
-      NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:54321"
-      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY: "ci-publishable-key"
-      SUPABASE_SERVICE_ROLE_KEY: "ci-service-role-key"
+      DATABASE_URL: "postgres://wolfcha:ci-postgres-password@127.0.0.1:5432/wolfcha"
+      AUTH_SECRET: "ci-auth-secret-for-build-only"
       TOKENDANCE_API_KEY: "ci-tokendance-key"
       TOKENDANCE_BASE_URL: "http://127.0.0.1:8080"
       MINIMAX_API_KEY: "ci-minimax-key"
@@ -138,7 +137,7 @@ jobs:
           printf '%s' "$PRODUCTION_ENV_B64" | base64 -d > .env.production
           while IFS='=' read -r key value; do
             case "$key" in
-              NEXT_PUBLIC_APP_URL|NEXT_PUBLIC_SUPABASE_URL|NEXT_PUBLIC_SUPABASE_ANON_KEY|NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY|NEXT_PUBLIC_WATCHA_CLIENT_ID|NEXT_PUBLIC_SHOW_DEVTOOLS)
+              NEXT_PUBLIC_APP_URL|NEXT_PUBLIC_WATCHA_CLIENT_ID|NEXT_PUBLIC_SHOW_DEVTOOLS)
                 value="${value%$'\r'}"
                 printf '%s=%s\n' "$key" "$value" >> "$GITHUB_ENV"
                 ;;
@@ -177,12 +176,8 @@ jobs:
           build-args: |
             NPM_REGISTRY=https://registry.npmmirror.com
             NEXT_PUBLIC_APP_URL=${{ env.NEXT_PUBLIC_APP_URL }}
-            NEXT_PUBLIC_SUPABASE_URL=${{ env.NEXT_PUBLIC_SUPABASE_URL }}
-            NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ env.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-            NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY=${{ env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY }}
             NEXT_PUBLIC_WATCHA_CLIENT_ID=${{ env.NEXT_PUBLIC_WATCHA_CLIENT_ID }}
             NEXT_PUBLIC_SHOW_DEVTOOLS=${{ env.NEXT_PUBLIC_SHOW_DEVTOOLS }}
-            SUPABASE_SERVICE_ROLE_KEY=build-service-role-key
 
       - name: Install SSH client helpers
         run: |

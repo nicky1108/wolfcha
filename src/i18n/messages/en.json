@@ -1901,7 +1901,7 @@
       "dashscopeNotConfigured": "DASHSCOPE_API_KEY not configured on server",
       "zenmuxNotConfigured": "ZENMUX_API_KEY not configured on server",
       "unknownError": "Unknown error",
-      "serverMisconfiguration": "Server misconfiguration: missing SUPABASE_SERVICE_ROLE_KEY",
+      "serverMisconfiguration": "Server misconfiguration: missing DATABASE_URL or AUTH_SECRET",
       "failedToReadCredits": "Failed to read credits",
       "insufficientCredits": "Insufficient credits",
       "failedToUpdateCredits": "Failed to update credits",

@@ -137,10 +137,12 @@ start_application() {
     export WOLFCHA_IMAGE
     login_container_registry
     docker compose --env-file .env.production pull app
-    docker compose --env-file .env.production up -d --no-build --remove-orphans app
   else
-    nice -n 10 docker compose --env-file .env.production up -d --build --remove-orphans
+    nice -n 10 docker compose --env-file .env.production build app
   fi
+
+  docker compose --env-file .env.production run --rm --no-deps app node scripts/migrate-postgres.mjs
+  docker compose --env-file .env.production up -d --no-build --remove-orphans app
 
   log "Started Docker Compose service"
 }
@@ -157,8 +159,8 @@ wait_for_health() {
     sleep 2
   done
 
-  docker compose ps || true
-  docker compose logs --tail=120 app || true
+  docker compose --env-file .env.production ps || true
+  docker compose --env-file .env.production logs --tail=120 app || true
   printf '[deploy] health check failed: %s\n' "$url" >&2
   exit 1
 }

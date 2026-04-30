@@ -9,7 +9,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as crypto from "node:crypto";
-import { createClient } from "@supabase/supabase-js";
+import { Client } from "pg";
 
 const CHAR_SET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 const CODE_PREFIX = "wolf";
@@ -71,11 +71,10 @@ async function main() {
   const envPath = path.resolve(process.cwd(), ".env.local");
   loadEnvFile(envPath);
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const databaseUrl = process.env.DATABASE_URL;
 
-  if (!supabaseUrl || !serviceRoleKey) {
-    console.error("Missing env vars: NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY");
+  if (!databaseUrl) {
+    console.error("Missing env var: DATABASE_URL");
     console.error("Ensure .env.local is configured.");
     process.exit(1);
   }
@@ -88,21 +87,34 @@ async function main() {
     codes.add(generateCode());
   }
 
-  const supabase = createClient(supabaseUrl, serviceRoleKey);
-
   const rows = Array.from(codes).map((code) => ({
     code,
     credits_amount: DEFAULT_CREDITS_AMOUNT,
     is_redeemed: false,
   }));
 
-  const { error } = await supabase
-    .from("redemption_codes")
-    .insert(rows as never[]);
-
-  if (error) {
-    console.error("Failed to insert codes:", error.message);
+  const client = new Client({ connectionString: databaseUrl });
+  await client.connect();
+  try {
+    const placeholders: string[] = [];
+    const values: unknown[] = [];
+    rows.forEach((row, index) => {
+      const offset = index * 3;
+      placeholders.push(`($${offset + 1}, $${offset + 2}, $${offset + 3})`);
+      values.push(row.code, row.credits_amount, row.is_redeemed);
+    });
+    await client.query(
+      `
+        insert into redemption_codes (code, credits_amount, is_redeemed)
+        values ${placeholders.join(", ")}
+      `,
+      values
+    );
+  } catch (error) {
+    console.error("Failed to insert codes:", error instanceof Error ? error.message : error);
     process.exit(1);
+  } finally {
+    await client.end();
   }
 
   const codeList = Array.from(codes);

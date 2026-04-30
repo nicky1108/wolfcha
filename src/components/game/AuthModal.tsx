@@ -175,8 +175,8 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
     if (error) {
       setError(translateAuthError(error.message));
     } else {
-      // Check if this is a real new user or existing user
-      // Supabase returns empty identities array for existing users (security measure)
+      // Check if this is a real new user or existing user.
+      // The self-hosted auth API keeps this Supabase-compatible shape.
       const isExistingUser = data.user?.identities?.length === 0;
       
       if (isExistingUser) {

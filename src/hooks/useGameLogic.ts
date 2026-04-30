@@ -1387,7 +1387,7 @@ export function useGameLogic() {
       };
       gameStatsTracker.start(statsConfig);
 
-      // 创建游戏会话记录（前端直接调用 Supabase）
+      // 创建游戏会话记录（前端调用服务端 API）
       gameSessionTracker.start({
         playerCount,
         difficulty,

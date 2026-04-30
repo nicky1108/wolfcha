@@ -1,18 +1,19 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { supabaseAdmin, ensureAdminClient } from "@/lib/supabase-admin";
+import { createSession, encodeSessionForRedirect, upsertOauthUser } from "@/lib/auth-server";
+import { ensureAdminClient } from "@/lib/supabase-admin";
 import { exchangeCodeForToken, fetchWatchaUserInfo } from "@/lib/watcha-oauth";
 
 export const dynamic = "force-dynamic";
 
-/** 观猹用户在 Supabase 中的虚拟邮箱 */
+/** 观猹用户在本地认证系统中的虚拟邮箱 */
 function watchaEmail(watchaUserId: number): string {
   return `watcha_${watchaUserId}@watcha.oauth.local`;
 }
 
 /**
  * GET /api/auth/watcha/callback
- * 观猹 OAuth2 回调：code 换 token → 拿 userinfo → 关联 Supabase 用户 → 设置 session
+ * 观猹 OAuth2 回调：code 换 token → 拿 userinfo → 关联本地用户 → 设置 session
  */
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -41,7 +42,7 @@ export async function GET(request: Request) {
   try {
     ensureAdminClient();
   } catch {
-    console.error("[Watcha OAuth] Supabase admin client not configured");
+    console.error("[Watcha OAuth] self-hosted auth is not configured");
     return NextResponse.redirect(`${origin}?watcha_error=server_error`);
   }
 
@@ -54,7 +55,7 @@ export async function GET(request: Request) {
     // 2. 拿用户信息
     const watchaUser = await fetchWatchaUserInfo(tokenData.access_token);
 
-    // 3. 在 Supabase 中查找或创建用户
+    // 3. 在本地数据库中查找或创建用户
     const email = watchaEmail(watchaUser.user_id);
     const metadata = {
       watcha_user_id: watchaUser.user_id,
@@ -63,60 +64,10 @@ export async function GET(request: Request) {
       provider: "watcha",
     };
 
-    let supabaseUserId: string;
-
-    // 尝试创建用户（如果已存在会报错）
-    const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
-      email,
-      email_confirm: true,
-      user_metadata: metadata,
-    });
-
-    if (!createError && newUser.user) {
-      supabaseUserId = newUser.user.id;
-
-      // 新用户初始化积分
-      await supabaseAdmin
-        .from("user_credits")
-        .upsert(
-          { id: supabaseUserId, credits: 10, updated_at: new Date().toISOString() } as never,
-          { onConflict: "id" }
-        );
-    } else {
-      // 用户已存在，通过 listUsers 查找
-      const { data: { users } } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000, page: 1 });
-      const existing = users?.find((u) => u.email === email);
-      if (!existing) {
-        throw createError || new Error("User creation failed and existing user not found");
-      }
-      supabaseUserId = existing.id;
-    }
-
-    // 4. 更新用户 metadata（昵称/头像可能变化）
-    await supabaseAdmin.auth.admin.updateUserById(supabaseUserId, {
-      user_metadata: metadata,
-    });
-
-    // 5. 生成 magic link 让前端自动登录
-    const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
-      type: "magiclink",
-      email,
-    });
-
-    if (linkError || !linkData) {
-      throw linkError || new Error("Failed to generate login link");
-    }
-
-    const hashed_token = linkData.properties?.hashed_token;
-    if (!hashed_token) {
-      throw new Error("No hashed_token in magic link response");
-    }
-
-    // 重定向到 Supabase verify 端点，它会设置 session 然后跳回首页
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const verifyUrl = `${supabaseUrl}/auth/v1/verify?token=${hashed_token}&type=magiclink&redirect_to=${encodeURIComponent(origin)}`;
-
-    const response = NextResponse.redirect(verifyUrl);
+    const user = await upsertOauthUser(email, metadata, 10);
+    const session = createSession(user);
+    const redirectUrl = `${origin}/#wolfcha_session=${encodeURIComponent(encodeSessionForRedirect(session))}`;
+    const response = NextResponse.redirect(redirectUrl);
     response.cookies.delete("watcha_oauth_state");
 
     return response;

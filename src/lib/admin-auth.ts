@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import type { User } from "@supabase/supabase-js";
+import type { AppUser } from "@/lib/auth-server";
 import { ensureAdminClient, supabaseAdmin } from "@/lib/supabase-admin";
 
 const LOCAL_DEV_ADMIN_EMAIL = "demo@wolfcha.dev";
 
 export type AdminAuthResult =
-  | { user: User; email: string }
+  | { user: AppUser; email: string }
   | { error: NextResponse };
 
 export function getConfiguredAdminEmails(): string[] {
@@ -29,7 +29,7 @@ export async function authenticateAdminRequest(request: Request): Promise<AdminA
   try {
     ensureAdminClient();
   } catch (error) {
-    console.error("[admin-auth] Supabase admin client not configured", error);
+    console.error("[admin-auth] self-hosted auth is not configured", error);
     return {
       error: NextResponse.json({ error: "Server configuration error" }, { status: 500 }),
     };

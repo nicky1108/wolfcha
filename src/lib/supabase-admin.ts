@@ -1,17 +1,14 @@
-import { createClient } from "@supabase/supabase-js";
-import type { Database } from "@/types/database";
+import { createPostgresAdminClient } from "@/lib/postgres-supabase-adapter";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
-
-// Admin client for server-side operations (bypasses RLS)
-// Will throw at runtime if env vars are missing when actually used
-export const supabaseAdmin = createClient<Database>(supabaseUrl, serviceRoleKey);
+// Compatibility name retained so existing API routes can move off Supabase
+// without rewriting all business logic in one pass.
+export const supabaseAdmin = createPostgresAdminClient();
 
 export function ensureAdminClient() {
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    throw new Error(
-      "Missing SUPABASE_SERVICE_ROLE_KEY. Get it from Supabase Dashboard > Settings > API > service_role key"
-    );
+  if (!process.env.DATABASE_URL) {
+    throw new Error("DATABASE_URL is not configured");
+  }
+  if (!process.env.AUTH_SECRET && !process.env.SESSION_SECRET) {
+    throw new Error("AUTH_SECRET is not configured");
   }
 }

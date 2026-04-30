@@ -1,14 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Session, User } from "@supabase/supabase-js";
 import {
   fetchDemoModeConfigClient,
   getDefaultDemoModeConfigSnapshot,
   type DemoModePublicConfigSnapshot,
 } from "@/lib/demo-config";
 import { clearGuestId, getGuestId, readGuestIdFromStorage } from "@/lib/demo-mode";
-import { supabase } from "@/lib/supabase";
+import { supabase, type Session, type User } from "@/lib/supabase";
 import {
   DAILY_BONUS_ENABLED,
   REFERRAL_BONUS_ENABLED,
@@ -21,6 +20,7 @@ import { STANDARD_GAME_CREDIT_COST } from "@/lib/game-credit-cost";
 
 const REFERRAL_ENDPOINT = "/api/credits/referral";
 const REDEEM_ENDPOINT = "/api/credits/redeem";
+const CREDITS_ME_ENDPOINT = "/api/credits/me";
 const SPRING_CAMPAIGN_ENDPOINT = "/api/credits/spring-login-bonus";
 const BOOTSTRAP_CREDITS_ENDPOINT = "/api/credits/bootstrap";
 const JSON_CONTENT_TYPE = "application/json";
@@ -54,25 +54,31 @@ export function useCredits() {
     if (!user) return;
     setLoading(true);
 
-    const { data, error } = await supabase
-      .from("user_credits")
-      .select("credits, referral_code, total_referrals")
-      .eq("id", user.id)
-      .single();
+    if (!session?.access_token) {
+      setLoading(false);
+      return;
+    }
 
-    const creditsRow = data as {
-      credits: number;
-      referral_code: string;
-      total_referrals: number;
+    const response = await fetch(CREDITS_ME_ENDPOINT, {
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      cache: "no-store",
+    });
+    const creditsRow = (await response.json().catch(() => null)) as {
+      credits?: number;
+      referral_code?: string;
+      total_referrals?: number;
     } | null;
-    if (!error && creditsRow) {
+
+    if (response.ok && creditsRow && typeof creditsRow.credits === "number") {
       setCredits(creditsRow.credits);
-      setReferralCode(creditsRow.referral_code);
-      setTotalReferrals(creditsRow.total_referrals);
+      setReferralCode(creditsRow.referral_code ?? null);
+      setTotalReferrals(creditsRow.total_referrals ?? 0);
     }
 
     setLoading(false);
-  }, [user]);
+  }, [session, user]);
 
   const refreshDemoConfig = useCallback(async (forceRefresh = false) => {
     const snapshot = await fetchDemoModeConfigClient(forceRefresh);

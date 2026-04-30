@@ -86,7 +86,7 @@ export async function getDemoModeConfigServer(): Promise<DemoModePublicConfigSna
   try {
     ensureAdminClient();
   } catch (error) {
-    console.error("[demo-config] Missing Supabase admin client", error);
+    console.error("[demo-config] Missing self-hosted database configuration", error);
     return buildInactiveSnapshot(now);
   }
 

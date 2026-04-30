@@ -51,7 +51,7 @@ export function AccountModal({ open, onOpenChange }: AccountModalProps) {
     setLoading(true);
 
     try {
-      // Update password using Supabase
+      // Update password using the self-hosted auth API
       const { error } = await supabase.auth.updateUser({
         password: newPassword,
       });

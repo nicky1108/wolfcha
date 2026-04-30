@@ -1,16 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
 import type { CustomCharacter, CustomCharacterInput } from "@/types/custom-character";
 import { DEFAULT_CUSTOM_CHARACTER_AGE, DEFAULT_CUSTOM_CHARACTER_GENDER, MAX_CUSTOM_CHARACTERS } from "@/types/custom-character";
-import type { User } from "@supabase/supabase-js";
+import type { User } from "@/lib/supabase";
+import { getAuthHeaders } from "@/lib/auth-headers";
 import { fillCustomCharacterOptionalFields } from "@/lib/custom-character-defaults";
-import {
-  buildCustomCharacterInsert,
-  isVisibleCustomCharacter,
-  normalizeCustomCharacterRow,
-} from "@/lib/custom-character-persistence";
+import { normalizeCustomCharacterRow } from "@/lib/custom-character-persistence";
+
+const CUSTOM_CHARACTERS_ENDPOINT = "/api/custom-characters";
 
 export function useCustomCharacters(user: User | null) {
   const [characters, setCharacters] = useState<CustomCharacter[]>([]);
@@ -27,16 +25,16 @@ export function useCustomCharacters(user: User | null) {
     setError(null);
 
     try {
-      const { data, error: fetchError } = await supabase
-        .from("custom_characters")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
-
-      if (fetchError) throw fetchError;
-      const visibleRows = ((data as CustomCharacter[]) ?? [])
-        .filter(isVisibleCustomCharacter)
-        .map(normalizeCustomCharacterRow);
+      const response = await fetch(CUSTOM_CHARACTERS_ENDPOINT, {
+        headers: await getAuthHeaders(),
+        cache: "no-store",
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        characters?: CustomCharacter[];
+        error?: string;
+      };
+      if (!response.ok) throw new Error(payload.error || "Failed to fetch characters");
+      const visibleRows = (payload.characters ?? []).map(normalizeCustomCharacterRow);
       setCharacters(visibleRows);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to fetch characters");
@@ -61,15 +59,26 @@ export function useCustomCharacters(user: User | null) {
       const displayName = normalizedInput.display_name.trim();
       const avatarSeed = normalizedInput.avatar_seed?.trim() || `${displayName}-${Date.now()}`;
       
-      const { data, error: insertError } = await supabase
-        .from("custom_characters")
-        .insert(buildCustomCharacterInsert(user.id, normalizedInput, avatarSeed) as never)
-        .select()
-        .single();
-
-      if (insertError) throw insertError;
+      const response = await fetch(CUSTOM_CHARACTERS_ENDPOINT, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(await getAuthHeaders()),
+        },
+        body: JSON.stringify({
+          input: {
+            ...normalizedInput,
+            avatar_seed: normalizedInput.avatar_seed?.trim() || avatarSeed,
+          },
+        }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        character?: CustomCharacter;
+        error?: string;
+      };
+      if (!response.ok || !payload.character) throw new Error(payload.error || "Failed to create character");
       
-      const newChar = normalizeCustomCharacterRow(data as CustomCharacter);
+      const newChar = normalizeCustomCharacterRow(payload.character);
       setCharacters(prev => [newChar, ...prev]);
       return newChar;
     } catch (err) {
@@ -114,17 +123,21 @@ export function useCustomCharacters(user: User | null) {
       if (input.style_label !== undefined) updateData.style_label = normalizedInput?.style_label?.trim() || null;
       if (input.avatar_seed !== undefined) updateData.avatar_seed = input.avatar_seed;
 
-      const { data, error: updateError } = await supabase
-        .from("custom_characters")
-        .update(updateData as never)
-        .eq("id", id)
-        .eq("user_id", user.id)
-        .select()
-        .single();
-
-      if (updateError) throw updateError;
+      const response = await fetch(CUSTOM_CHARACTERS_ENDPOINT, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          ...(await getAuthHeaders()),
+        },
+        body: JSON.stringify({ id, input: updateData }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        character?: CustomCharacter;
+        error?: string;
+      };
+      if (!response.ok || !payload.character) throw new Error(payload.error || "Failed to update character");
       
-      const updated = normalizeCustomCharacterRow(data as CustomCharacter);
+      const updated = normalizeCustomCharacterRow(payload.character);
       setCharacters(prev => prev.map(c => c.id === id ? updated : c));
       return updated;
     } catch (err) {
@@ -142,13 +155,16 @@ export function useCustomCharacters(user: User | null) {
     setError(null);
 
     try {
-      const { error: deleteError } = await supabase
-        .from("custom_characters")
-        .update({ is_deleted: true, updated_at: new Date().toISOString() } as never)
-        .eq("id", id)
-        .eq("user_id", user.id);
-
-      if (deleteError) throw deleteError;
+      const response = await fetch(CUSTOM_CHARACTERS_ENDPOINT, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          ...(await getAuthHeaders()),
+        },
+        body: JSON.stringify({ id }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) throw new Error(payload.error || "Failed to delete character");
       
       setCharacters(prev => prev.filter(c => c.id !== id));
       return true;

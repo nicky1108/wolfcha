@@ -26,21 +26,13 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 ARG NEXT_PUBLIC_APP_URL
-ARG NEXT_PUBLIC_SUPABASE_URL
-ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
-ARG NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY
 ARG NEXT_PUBLIC_WATCHA_CLIENT_ID
 ARG NEXT_PUBLIC_SHOW_DEVTOOLS=false
-ARG SUPABASE_SERVICE_ROLE_KEY=build-service-role-key
 
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
-ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
-ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
-ENV NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY=$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY
 ENV NEXT_PUBLIC_WATCHA_CLIENT_ID=$NEXT_PUBLIC_WATCHA_CLIENT_ID
 ENV NEXT_PUBLIC_SHOW_DEVTOOLS=$NEXT_PUBLIC_SHOW_DEVTOOLS
-ENV SUPABASE_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_ROLE_KEY
 
 # Next.js collects completely anonymous telemetry data about general usage.
 # Learn more here: https://nextjs.org/telemetry
@@ -77,6 +69,8 @@ RUN chown nextjs:nodejs .next
 # https://nextjs.org/docs/advanced-features/output-file-tracing
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/scripts/migrate-postgres.mjs ./scripts/migrate-postgres.mjs
+COPY --from=builder --chown=nextjs:nodejs /app/scripts/sql ./scripts/sql
 
 USER nextjs
 

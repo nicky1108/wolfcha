@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { Session } from "@supabase/supabase-js";
 import type { LucideIcon } from "lucide-react";
 import {
   BadgeCheck,
@@ -22,7 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { supabase } from "@/lib/supabase";
+import { supabase, type Session } from "@/lib/supabase";
 
 type AdminOverview = {
   admin: {

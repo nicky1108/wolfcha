@@ -1983,7 +1983,7 @@
       "dashscopeNotConfigured": "服务器未配置 DASHSCOPE_API_KEY",
       "zenmuxNotConfigured": "服务器未配置 ZENMUX_API_KEY",
       "unknownError": "未知错误",
-      "serverMisconfiguration": "服务器配置缺失：缺少 SUPABASE_SERVICE_ROLE_KEY",
+      "serverMisconfiguration": "服务器配置缺失：缺少 DATABASE_URL 或 AUTH_SECRET",
       "failedToReadCredits": "读取积分失败",
       "insufficientCredits": "积分不足",
       "failedToUpdateCredits": "更新积分失败",
