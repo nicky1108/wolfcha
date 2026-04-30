@@ -10,7 +10,7 @@ import { useAtom } from "jotai";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import type { DevPreset, DifficultyLevel, Role, StartGameOptions } from "@/types/game";
-import { DevModeButton } from "@/components/DevTools";
+import { DevModeButton } from "@/components/DevTools/DevModeButton";
 import { GameSetupModal } from "@/components/game/GameSetupModal";
 import { AuthModal } from "@/components/game/AuthModal";
 import { SharePanel } from "@/components/game/SharePanel";

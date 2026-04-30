@@ -8,6 +8,8 @@ CERT_ZIP="${CERT_ZIP:-/home/${DOMAIN}_nginx.zip}"
 CERT_DIR="${CERT_DIR:-/etc/nginx/ssl/${DOMAIN}}"
 NGINX_SITE="/etc/nginx/sites-available/${DOMAIN}"
 NGINX_LINK="/etc/nginx/sites-enabled/${DOMAIN}"
+NGINX_CACHE_CONF="/etc/nginx/conf.d/${DOMAIN}-static-cache.conf"
+NGINX_STATIC_CACHE_DIR="${NGINX_STATIC_CACHE_DIR:-/var/cache/nginx/${DOMAIN}/next-static}"
 WOLFCHA_IMAGE="${WOLFCHA_IMAGE:-}"
 
 log() {
@@ -83,6 +85,15 @@ install_certificate() {
 write_nginx_site() {
   require_command nginx
 
+  install -d -m 755 "$NGINX_STATIC_CACHE_DIR"
+  if id www-data >/dev/null 2>&1; then
+    chown www-data:www-data "$NGINX_STATIC_CACHE_DIR"
+  fi
+
+  cat > "$NGINX_CACHE_CONF" <<NGINX
+proxy_cache_path ${NGINX_STATIC_CACHE_DIR} levels=1:2 keys_zone=wolfcha_static:50m max_size=512m inactive=365d use_temp_path=off;
+NGINX
+
   cat > "$NGINX_SITE" <<NGINX
 server {
     listen 80;
@@ -103,6 +114,27 @@ server {
 
     client_max_body_size 20m;
 
+    location ^~ /_next/static/ {
+        proxy_pass http://127.0.0.1:${APP_PORT};
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header Accept-Encoding \$http_accept_encoding;
+        proxy_cache wolfcha_static;
+        proxy_cache_key "\$scheme|\$request_method|\$host|\$request_uri|\$http_accept_encoding";
+        proxy_cache_lock on;
+        proxy_cache_revalidate on;
+        proxy_cache_use_stale error timeout updating http_500 http_502 http_503 http_504;
+        proxy_cache_valid 200 365d;
+        proxy_cache_valid 301 302 1h;
+        proxy_cache_valid 404 1m;
+        proxy_ignore_headers Set-Cookie;
+        proxy_hide_header Set-Cookie;
+        add_header X-Wolfcha-Static-Cache \$upstream_cache_status always;
+    }
+
     location / {
         proxy_pass http://127.0.0.1:${APP_PORT};
         proxy_http_version 1.1;
@@ -122,6 +154,34 @@ NGINX
   nginx -t
   systemctl reload nginx
   log "Reloaded nginx for ${DOMAIN}"
+}
+
+warm_static_assets() {
+  require_command curl
+
+  local page_tmp
+  page_tmp="$(mktemp)"
+
+  if ! curl -fsS --compressed --resolve "${DOMAIN}:443:127.0.0.1" "https://${DOMAIN}/" -o "$page_tmp"; then
+    log "Static asset warmup skipped: could not fetch homepage"
+    rm -f "$page_tmp"
+    return 0
+  fi
+
+  local warmed=0
+  local asset url
+  while IFS= read -r asset; do
+    [ -n "$asset" ] || continue
+    url="https://${DOMAIN}${asset}"
+    if curl -fsS --compressed --resolve "${DOMAIN}:443:127.0.0.1" "$url" -o /dev/null; then
+      warmed=$((warmed + 1))
+    else
+      log "Static asset warmup missed: ${asset}"
+    fi
+  done < <(grep -oE '"/_next/static/[^"]+\.(js|css)"' "$page_tmp" | tr -d '"' | sort -u)
+
+  rm -f "$page_tmp"
+  log "Warmed ${warmed} Next static assets"
 }
 
 start_application() {
@@ -171,6 +231,7 @@ main() {
   start_application
   wait_for_health
   write_nginx_site
+  warm_static_assets
 }
 
 main "$@"

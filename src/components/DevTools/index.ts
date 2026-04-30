@@ -1,1 +1,2 @@
-export { DevConsole, DevModeButton } from "./DevConsole";
+export { DevConsole } from "./DevConsole";
+export { DevModeButton } from "./DevModeButton";

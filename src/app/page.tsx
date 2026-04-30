@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo, useCallback, useRef, type CSSProperties } from "react";
 import { AnimatePresence, motion, type TargetAndTransition } from "framer-motion";
+import dynamic from "next/dynamic";
 import { toast } from "sonner";
 import {
   Users,
@@ -39,18 +40,9 @@ import { BADGE_TRANSFER_TORN } from "@/lib/game-master";
 
 // Components
 import { WelcomeScreen } from "@/components/game/WelcomeScreen";
-import { PlayerCardCompact } from "@/components/game/PlayerCardCompact";
-import { DialogArea } from "@/components/game/DialogArea";
-import { VoiceCreditToggle } from "@/components/game/VoiceCreditToggle";
-import { BottomActionPanel } from "@/components/game/BottomActionPanel";
-import { Notebook } from "@/components/game/Notebook";
 import { GameBackground } from "@/components/game/GameBackground";
-import { PlayerDetailModal } from "@/components/game/PlayerDetailModal";
-import { RoleRevealOverlay } from "@/components/game/RoleRevealOverlay";
-import { NightActionOverlay, type NightActionOverlayType } from "@/components/game/NightActionOverlay";
-import { TutorialOverlay, type TutorialPayload } from "@/components/game/TutorialOverlay";
-import { DevConsole, DevModeButton } from "@/components/DevTools";
-import { SettingsModal } from "@/components/game/SettingsModal";
+import type { NightActionOverlayType } from "@/components/game/NightActionOverlay";
+import type { TutorialPayload } from "@/components/game/TutorialOverlay";
 
 import { buildSimpleAvatarUrl, getModelLogoUrl } from "@/lib/avatar-config";
 import { audioManager, makeAudioTaskId } from "@/lib/audio-manager";
@@ -77,6 +69,32 @@ const nightBgm = "/bgm/night.mp3";
 
 const WC_EYE_FEATHER_VAR = "--wc-eye-feather";
 const WC_LID_VAR = "--wc-lid";
+
+const PlayerCardCompact = dynamic(() =>
+  import("@/components/game/PlayerCardCompact").then((mod) => mod.PlayerCardCompact),
+);
+const DialogArea = dynamic(() => import("@/components/game/DialogArea").then((mod) => mod.DialogArea));
+const VoiceCreditToggle = dynamic(() =>
+  import("@/components/game/VoiceCreditToggle").then((mod) => mod.VoiceCreditToggle),
+);
+const Notebook = dynamic(() => import("@/components/game/Notebook").then((mod) => mod.Notebook));
+const PlayerDetailModal = dynamic(() =>
+  import("@/components/game/PlayerDetailModal").then((mod) => mod.PlayerDetailModal),
+);
+const RoleRevealOverlay = dynamic(() =>
+  import("@/components/game/RoleRevealOverlay").then((mod) => mod.RoleRevealOverlay),
+);
+const NightActionOverlay = dynamic(() =>
+  import("@/components/game/NightActionOverlay").then((mod) => mod.NightActionOverlay),
+);
+const TutorialOverlay = dynamic(() =>
+  import("@/components/game/TutorialOverlay").then((mod) => mod.TutorialOverlay),
+);
+const DevModeButton = dynamic(() =>
+  import("@/components/DevTools/DevModeButton").then((mod) => mod.DevModeButton),
+);
+const DevConsole = dynamic(() => import("@/components/DevTools/DevConsole").then((mod) => mod.DevConsole));
+const SettingsModal = dynamic(() => import("@/components/game/SettingsModal").then((mod) => mod.SettingsModal));
 
 const getPlayerAvatarUrl = (player: Player, isGenshinMode: boolean) => {
   const isModelAvatar = isGenshinMode && !player.isHuman;
@@ -1848,34 +1866,38 @@ export default function Home() {
       </AnimatePresence>
 
       {/* 玩家详情弹窗 */}
-      <PlayerDetailModal
-        player={detailPlayer}
-        isOpen={detailPlayer !== null}
-        onClose={() => setDetailPlayer(null)}
-        humanPlayer={humanPlayer}
-        isGenshinMode={gameState?.isGenshinMode ?? isGenshinMode}
-        isSpectatorMode={gameState?.isSpectatorMode ?? false}
-      />
+      {detailPlayer && (
+        <PlayerDetailModal
+          player={detailPlayer}
+          isOpen={true}
+          onClose={() => setDetailPlayer(null)}
+          humanPlayer={humanPlayer}
+          isGenshinMode={gameState?.isGenshinMode ?? isGenshinMode}
+          isSpectatorMode={gameState?.isSpectatorMode ?? false}
+        />
+      )}
 
-      <SettingsModal
-        open={isSettingsOpen}
-        onOpenChange={setIsSettingsOpen}
-        bgmVolume={bgmVolume}
-        isSoundEnabled={isSoundEnabled}
-        isAutoAdvanceDialogueEnabled={isAutoAdvanceDialogueEnabled}
-        gameState={gameState}
-        onBgmVolumeChange={setBgmVolume}
-        onSoundEnabledChange={setSoundEnabled}
-        onAutoAdvanceDialogueEnabledChange={setAutoAdvanceDialogueEnabled}
-        isGameInProgress={gameInProgress}
-        onExitGame={restartGame}
-      />
+      {isSettingsOpen && (
+        <SettingsModal
+          open={isSettingsOpen}
+          onOpenChange={setIsSettingsOpen}
+          bgmVolume={bgmVolume}
+          isSoundEnabled={isSoundEnabled}
+          isAutoAdvanceDialogueEnabled={isAutoAdvanceDialogueEnabled}
+          gameState={gameState}
+          onBgmVolumeChange={setBgmVolume}
+          onSoundEnabledChange={setSoundEnabled}
+          onAutoAdvanceDialogueEnabledChange={setAutoAdvanceDialogueEnabled}
+          isGameInProgress={gameInProgress}
+          onExitGame={restartGame}
+        />
+      )}
 
       {/* 开发者模式 - 只在游戏开始后显示 */}
       {showTable && showDevTools && (
         <>
           <DevModeButton onClick={() => setIsDevConsoleOpen(true)} />
-          <DevConsole isOpen={isDevConsoleOpen} onClose={() => setIsDevConsoleOpen(false)} />
+          {isDevConsoleOpen && <DevConsole isOpen={true} onClose={() => setIsDevConsoleOpen(false)} />}
         </>
       )}
     </div>
