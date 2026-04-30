@@ -11,6 +11,8 @@ import { MBTI_OPTIONS, GENDER_OPTIONS, FIELD_LIMITS, MAX_CUSTOM_CHARACTERS } fro
 import { buildAvatarUrl } from "@/lib/avatar-config";
 import type { Gender } from "@/lib/character-generator";
 import { LLMJSONParser } from "ai-json-fixer";
+import { generateJSON } from "@/lib/llm";
+import { AVAILABLE_MODELS, MODEL_IDS } from "@/types/game";
 
 interface CustomCharacterModalProps {
   open: boolean;
@@ -27,6 +29,9 @@ interface CustomCharacterModalProps {
 }
 
 type ViewMode = "list" | "create" | "edit";
+
+const DEFAULT_AI_CHARACTER_MODEL = MODEL_IDS.tokendance.qwen36Plus;
+const AI_VOICE_MATCH_KEYWORDS = "逻辑、冷静、温柔、活泼、强势、南方、港普、播音、真诚、热情、简洁";
 
 export function CustomCharacterModal({
   open,
@@ -49,6 +54,9 @@ export function CustomCharacterModal({
   const [importText, setImportText] = useState("");
   const [isAiHelpOpen, setIsAiHelpOpen] = useState(false);
   const [aiPromptDraft, setAiPromptDraft] = useState("");
+  const [aiDirectModel, setAiDirectModel] = useState<string>(DEFAULT_AI_CHARACTER_MODEL);
+  const [aiDirectPreference, setAiDirectPreference] = useState("");
+  const [isAiDirectGenerating, setIsAiDirectGenerating] = useState(false);
   const [detailCharacter, setDetailCharacter] = useState<CustomCharacter | null>(null);
   const [formData, setFormData] = useState<CustomCharacterInput>({
     display_name: "",
@@ -61,6 +69,7 @@ export function CustomCharacterModal({
   });
   const [ageInput, setAgeInput] = useState<string>(String(25));
   const jsonParser = useMemo(() => new LLMJSONParser(), []);
+  const aiDirectModelOptions = useMemo(() => AVAILABLE_MODELS, []);
 
   const normalizeAgeInput = useCallback((raw: string): number => {
     const parsed = Number.parseInt(String(raw ?? "").trim(), 10);
@@ -255,6 +264,27 @@ export function CustomCharacterModal({
     };
   }, []);
 
+  const normalizeGeneratedCharacters = useCallback((raw: unknown): CustomCharacterInput[] => {
+    const record =
+      raw && typeof raw === "object" && !Array.isArray(raw)
+        ? raw as Record<string, unknown>
+        : null;
+    const character = record?.character;
+    const list = Array.isArray(raw)
+      ? raw
+      : record && Array.isArray(record.characters)
+        ? record.characters
+        : character && typeof character === "object"
+          ? [character]
+          : record
+            ? [record]
+            : [];
+
+    return list
+      .map((item, idx) => (item && typeof item === "object" ? normalizeImportedCharacter(item as Record<string, unknown>, idx) : null))
+      .filter((item): item is CustomCharacterInput => !!item);
+  }, [normalizeImportedCharacter]);
+
   const parseImportText = useCallback((rawText: string): CustomCharacterInput[] | null => {
     const text = String(rawText ?? "").trim();
     if (!text) return null;
@@ -341,7 +371,7 @@ export function CustomCharacterModal({
       "  - age: number（16-70）",
       "  - mbti: string（可为空，或 4 位大写，例如 \"INTJ\"）",
       "  - basic_info: string（可为空，<=400 字，适合狼人杀对局身份/背景）",
-      "  - style_label: string（可为空，<=400 字，用于说话风格/口吻，例如“冷静、短句、少废话”）",
+      `  - style_label: string（可为空，<=400 字，用于说话风格/口吻；请包含 1-3 个便于匹配语音音色的关键词：${AI_VOICE_MATCH_KEYWORDS}）`,
       "  - avatar_seed: string（可为空；如不填我会自动生成）",
       "",
       "【示例 JSON】",
@@ -355,6 +385,7 @@ export function CustomCharacterModal({
       "}",
       "",
       "补充要求：这个角色要适合狼人杀对局发言（会分析、会站边、会投票），不要太中二。",
+      "补充要求：请根据角色年龄、性别、背景，在 style_label 中写出可用于匹配音色的口吻关键词。",
       "",
       "可选偏好（你可以自由发挥）：",
       "- 我希望角色偏好/关键词：{在这里写你想要的风格，比如：理性、强势归票、幽默但不油腻}",
@@ -363,6 +394,99 @@ export function CustomCharacterModal({
       "现在请直接输出 1 个 JSON 对象（不要 Markdown 代码块，不要解释文字）。",
     ].join("\n");
   }, []);
+
+  const buildDirectAiPrompt = useCallback(() => {
+    return [
+      "请为 Wolfcha（AI 狼人杀）生成 1 个自定义角色 JSON 对象。",
+      "",
+      "硬性要求：",
+      "- 只输出严格 JSON 对象，不要 Markdown，不要解释文字。",
+      "- 不要输出数组，不要包裹在 characters 字段中。",
+      "- 角色必须适合狼人杀对局：会分析、会站边、会投票、能自然发言。",
+      "- 名字、背景、口吻要自然，不要太中二。",
+      "- 根据角色的性别、年龄、背景和性格，为 style_label 写入能匹配语音音色的关键词。",
+      `- style_label 至少包含这些关键词中的 1-3 个：${AI_VOICE_MATCH_KEYWORDS}。`,
+      "",
+      "字段：",
+      "- display_name: string（1-20 字）",
+      "- gender: \"male\" | \"female\" | \"nonbinary\"",
+      "- age: number（16-70）",
+      "- mbti: string（可为空，或 4 位大写，例如 \"INTJ\"）",
+      "- basic_info: string（<=400 字，写清背景、职业/经历、性格特征）",
+      "- style_label: string（<=400 字，写说话风格、情绪、节奏、音色关键词）",
+      "- avatar_seed: string（短横线英文/拼音即可，可为空）",
+      "",
+      aiDirectPreference.trim()
+        ? `用户偏好：${aiDirectPreference.trim()}`
+        : "用户偏好：自由发挥，生成一个辨识度高但真实自然的角色。",
+    ].join("\n");
+  }, [aiDirectPreference]);
+
+  const handleDirectAiGenerate = useCallback(async () => {
+    if (remainingSlots <= 0) {
+      toast.error(t("customCharacter.limitReached"));
+      return;
+    }
+
+    const modelRef =
+      aiDirectModelOptions.find((option) => option.model === aiDirectModel) ??
+      aiDirectModelOptions.find((option) => option.model === DEFAULT_AI_CHARACTER_MODEL) ??
+      aiDirectModelOptions[0];
+
+    if (!modelRef) {
+      toast.error(t("customCharacter.toast.aiGenerateFailed"));
+      return;
+    }
+
+    setIsAiDirectGenerating(true);
+    try {
+      const raw = await generateJSON<unknown>({
+        model: modelRef.model,
+        provider: modelRef.provider,
+        messages: [
+          {
+            role: "system",
+            content: "你是狼人杀游戏角色设定助手，只输出可被程序解析的 JSON。",
+          },
+          {
+            role: "user",
+            content: buildDirectAiPrompt(),
+          },
+        ],
+        temperature: modelRef.temperature ?? 0.85,
+        max_tokens: 900,
+        ...(modelRef.reasoning ? { reasoning: modelRef.reasoning } : {}),
+      });
+
+      const normalized = normalizeGeneratedCharacters(raw);
+      const input = normalized[0];
+      if (!input) {
+        toast.error(t("customCharacter.errors.importInvalid"));
+        return;
+      }
+
+      const result = await onCreateCharacter(input);
+      if (!result) {
+        toast.error(t("customCharacter.toast.aiGenerateFailed"));
+        return;
+      }
+
+      toast.success(t("customCharacter.toast.aiGenerateSuccess", { name: result.display_name }));
+    } catch (error) {
+      console.error("[wolfcha] AI custom character generation failed:", error);
+      toast.error(t("customCharacter.toast.aiGenerateFailed"));
+    } finally {
+      setIsAiDirectGenerating(false);
+    }
+  }, [
+    aiDirectModel,
+    aiDirectModelOptions,
+    buildDirectAiPrompt,
+    normalizeGeneratedCharacters,
+    onCreateCharacter,
+    remainingSlots,
+    t,
+  ]);
 
   return (
     <>
@@ -744,6 +868,68 @@ export function CustomCharacterModal({
           <DialogDescription>{t("customCharacter.aiPrompt.description")}</DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
+          <div className="rounded-lg border border-[var(--border-color)] bg-[var(--bg-card)] p-3 space-y-3">
+            <div>
+              <div className="text-sm font-semibold text-[var(--text-primary)]">
+                {t("customCharacter.aiPrompt.directTitle")}
+              </div>
+              <div className="text-xs text-[var(--text-muted)] mt-1">
+                {t("customCharacter.aiPrompt.directDescription")}
+              </div>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-[220px_1fr]">
+              <div>
+                <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">
+                  {t("customCharacter.aiPrompt.modelLabel")}
+                </label>
+                <select
+                  value={aiDirectModel}
+                  onChange={(e) => setAiDirectModel(e.target.value)}
+                  className="w-full px-3 py-2 rounded-md border-2 border-[var(--border-color)] bg-[var(--bg-secondary)] text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--color-accent)]"
+                >
+                  {aiDirectModelOptions.map((modelRef) => (
+                    <option key={`${modelRef.provider}:${modelRef.model}`} value={modelRef.model}>
+                      {modelRef.model}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">
+                  {t("customCharacter.aiPrompt.preferenceLabel")}
+                </label>
+                <input
+                  type="text"
+                  value={aiDirectPreference}
+                  onChange={(e) => setAiDirectPreference(e.target.value)}
+                  placeholder={t("customCharacter.aiPrompt.preferencePlaceholder")}
+                  className="w-full px-3 py-2 rounded-md border-2 border-[var(--border-color)] bg-[var(--bg-secondary)] text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--color-accent)]"
+                />
+              </div>
+            </div>
+
+            <Button
+              type="button"
+              onClick={() => void handleDirectAiGenerate()}
+              disabled={isAiDirectGenerating || remainingSlots <= 0}
+              className="w-full gap-2"
+            >
+              <Sparkle size={16} weight="duotone" />
+              {isAiDirectGenerating
+                ? t("customCharacter.aiPrompt.generating")
+                : t("customCharacter.aiPrompt.generate")}
+            </Button>
+
+            <div className="text-xs text-[var(--text-muted)]">
+              {t("customCharacter.aiPrompt.voiceMatchHint")}
+            </div>
+          </div>
+
+          <div className="text-xs font-medium text-[var(--text-muted)]">
+            {t("customCharacter.aiPrompt.manualTitle")}
+          </div>
           <textarea
             value={aiPromptDraft || defaultAiPromptText}
             onChange={(e) => setAiPromptDraft(e.target.value)}

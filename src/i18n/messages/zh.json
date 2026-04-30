@@ -2277,6 +2277,15 @@
     "aiPrompt": {
       "title": "AI 生成角色",
       "description": "复制下面的提示词发送给任意 AI 工具，让它生成可导入的角色 JSON。",
+      "directTitle": "直接调用模型生成",
+      "directDescription": "使用已配置好的模型生成角色并立即保存，默认使用 qwen3.6-plus。",
+      "modelLabel": "生成模型",
+      "preferenceLabel": "偏好",
+      "preferencePlaceholder": "例如：强势归票、冷静律师、南方口音、幽默但不油腻",
+      "generate": "生成并保存角色",
+      "generating": "生成中...",
+      "manualTitle": "或复制提示词到其他 AI 工具",
+      "voiceMatchHint": "生成结果会根据性别、年龄、背景和口吻关键词，在开局时自动匹配并固定语音音色。",
       "copy": "复制提示词"
     },
     "detail": {
@@ -2295,6 +2304,8 @@
       "importSuccess": "已导入 {count} 个角色",
       "importPartial": "已导入 {imported} 个，跳过 {skipped} 个",
       "importFailed": "导入失败",
+      "aiGenerateSuccess": "已生成角色：{name}",
+      "aiGenerateFailed": "AI 生成失败",
       "copied": "已复制到剪贴板",
       "copyFailed": "复制失败"
     }

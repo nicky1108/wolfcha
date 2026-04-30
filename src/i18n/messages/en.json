@@ -2195,6 +2195,15 @@
     "aiPrompt": {
       "title": "AI generate characters",
       "description": "Copy this prompt and send it to any AI tool to generate importable character JSON.",
+      "directTitle": "Generate with a configured model",
+      "directDescription": "Use an already configured model to generate and save a character. Defaults to qwen3.6-plus.",
+      "modelLabel": "Generation model",
+      "preferenceLabel": "Preference",
+      "preferencePlaceholder": "e.g., forceful vote leader, calm lawyer, southern accent, witty but natural",
+      "generate": "Generate and save",
+      "generating": "Generating...",
+      "manualTitle": "Or copy the prompt to another AI tool",
+      "voiceMatchHint": "The generated gender, age, background, and speech-style keywords are used to match and fix a voice when the game starts.",
       "copy": "Copy prompt"
     },
     "detail": {
@@ -2213,6 +2222,8 @@
       "importSuccess": "Imported {count} characters",
       "importPartial": "Imported {imported}, skipped {skipped}",
       "importFailed": "Import failed",
+      "aiGenerateSuccess": "Generated character: {name}",
+      "aiGenerateFailed": "AI generation failed",
       "copied": "Copied to clipboard",
       "copyFailed": "Copy failed"
     }

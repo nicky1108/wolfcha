@@ -49,7 +49,7 @@ import {
 import { playNarrator } from "@/lib/narrator-audio-player";
 import { audioManager, makeAudioTaskId, type AudioTask } from "@/lib/audio-manager";
 import { getLocale } from "@/i18n/locale-store";
-import { resolveFixedVoiceId, type AppLocale } from "@/lib/voice-constants";
+import { resolveFixedVoiceId, resolveMatchedVoiceId, type AppLocale } from "@/lib/voice-constants";
 import { PhaseManager } from "@/game/core/PhaseManager";
 import { supabase } from "@/lib/supabase";
 import { gameStatsTracker } from "@/hooks/useGameStats";
@@ -1468,7 +1468,13 @@ export function useGameLogic() {
           gender: cc.gender,
           age: cc.age,
           basicInfo: cc.basic_info?.trim() || undefined,
-          voiceId: resolveFixedVoiceId(undefined, cc.gender, cc.age, gameLocale),
+          voiceId: resolveMatchedVoiceId(
+            undefined,
+            cc.gender,
+            cc.age,
+            gameLocale,
+            `${cc.basic_info ?? ""} ${cc.style_label ?? ""}`
+          ),
         },
         avatarSeed: cc.avatar_seed || undefined,
       }));

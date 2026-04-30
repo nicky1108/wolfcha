@@ -105,6 +105,41 @@ export function resolveVoiceId(
   return normGender === "female" ? defaults.female : defaults.male;
 }
 
+export function resolveMatchedVoiceId(
+  input: string | undefined,
+  gender: "male" | "female" | "nonbinary" | undefined,
+  age?: number,
+  locale: AppLocale = "zh",
+  hintText?: string
+): string {
+  const fixed = input?.trim();
+  if (fixed) return fixed;
+
+  const normGender: "male" | "female" = gender === "female" ? "female" : "male";
+  const presets = locale === "en" ? ENGLISH_VOICE_PRESETS : VOICE_PRESETS;
+  const hints = String(hintText ?? "").toLowerCase();
+  if (!hints.trim()) return resolveVoiceId(undefined, gender, age, locale);
+
+  const hasAge = typeof age === "number" && Number.isFinite(age);
+  const candidates = presets.filter((preset) => preset.gender === normGender);
+  const scored = candidates
+    .map((preset, index) => {
+      const minOk = hasAge && typeof preset.minAge === "number" ? age >= preset.minAge : true;
+      const maxOk = hasAge && typeof preset.maxAge === "number" ? age <= preset.maxAge : true;
+      const ageScore = hasAge && minOk && maxOk ? 3 : 0;
+      const styleScore = preset.styles.reduce((score, style) => {
+        return hints.includes(style.toLowerCase()) ? score + 4 : score;
+      }, 0);
+      return { preset, score: ageScore + styleScore, index };
+    })
+    .sort((a, b) => b.score - a.score || a.index - b.index);
+
+  const best = scored[0];
+  if (best && best.score > 0) return best.preset.id;
+
+  return resolveVoiceId(undefined, gender, age, locale);
+}
+
 export function resolveFixedVoiceId(
   input: string | undefined,
   gender: "male" | "female" | "nonbinary" | undefined,
