@@ -4,9 +4,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   BadgeCheck,
+  ChevronLeft,
+  ChevronRight,
   Coins,
   Copy,
   CreditCard,
+  Gamepad2,
   KeyRound,
   Loader2,
   LogOut,
@@ -21,6 +24,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  ADMIN_GAME_SESSION_PAGE_SIZE_OPTIONS,
+  type AdminGameSessionStatus,
+} from "@/lib/admin-game-sessions";
 import { supabase, type Session } from "@/lib/supabase";
 
 type AdminOverview = {
@@ -32,6 +40,7 @@ type AdminOverview = {
   summary: {
     users: number;
     totalCredits: number;
+    totalSessions: number;
     completedSessions: number;
     paymentCount: number;
     totalRevenueCents: number;
@@ -85,6 +94,36 @@ type AdminOverview = {
   warnings: string[];
 };
 
+type AdminGameSessionRecord = {
+  id: string;
+  userId: string;
+  email: string;
+  playerCount: number;
+  difficulty: string | null;
+  winner: "wolf" | "villager" | null;
+  completed: boolean;
+  roundsPlayed: number;
+  durationSeconds: number | null;
+  aiCallsCount: number;
+  aiInputChars: number;
+  aiOutputChars: number;
+  aiPromptTokens: number;
+  aiCompletionTokens: number;
+  usedCustomKey: boolean;
+  modelUsed: string | null;
+  region: string | null;
+  createdAt: string;
+  endedAt: string | null;
+};
+
+type AdminGameSessionsPage = {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+  sessions: AdminGameSessionRecord[];
+};
+
 function formatDate(value: string | null | undefined): string {
   if (!value) return "-";
   const date = new Date(value);
@@ -108,6 +147,24 @@ function shortId(value: string | null | undefined): string {
   if (!value) return "-";
   if (value.length <= 12) return value;
   return `${value.slice(0, 6)}...${value.slice(-4)}`;
+}
+
+function winnerLabel(winner: AdminGameSessionRecord["winner"]): string {
+  if (winner === "wolf") return "狼人";
+  if (winner === "villager") return "好人";
+  return "-";
+}
+
+function formatDuration(seconds: number | null): string {
+  if (!seconds || seconds <= 0) return "-";
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  if (minutes <= 0) return `${remainingSeconds}s`;
+  return `${minutes}m ${remainingSeconds}s`;
+}
+
+function formatNumber(value: number): string {
+  return new Intl.NumberFormat("zh-CN").format(value);
 }
 
 function StatCard({
@@ -138,6 +195,11 @@ function StatCard({
 }
 
 const UsersIcon = UserRound;
+const GAME_SESSION_STATUS_OPTIONS: Array<{ value: AdminGameSessionStatus; label: string }> = [
+  { value: "all", label: "全部" },
+  { value: "completed", label: "已完成" },
+  { value: "active", label: "进行中" },
+];
 
 export function AdminDashboard() {
   const [session, setSession] = useState<Session | null>(null);
@@ -145,15 +207,22 @@ export function AdminDashboard() {
   const [password, setPassword] = useState("");
   const [overview, setOverview] = useState<AdminOverview | null>(null);
   const [query, setQuery] = useState("");
+  const [gameSessions, setGameSessions] = useState<AdminGameSessionsPage | null>(null);
+  const [gameSessionQuery, setGameSessionQuery] = useState("");
+  const [gameSessionStatus, setGameSessionStatus] = useState<AdminGameSessionStatus>("all");
+  const [gameSessionPage, setGameSessionPage] = useState(1);
+  const [gameSessionPageSize, setGameSessionPageSize] = useState(20);
   const [creditDrafts, setCreditDrafts] = useState<Record<string, string>>({});
   const [generateCount, setGenerateCount] = useState("10");
   const [generateCredits, setGenerateCredits] = useState("5");
   const [generatedCodes, setGeneratedCodes] = useState<string[]>([]);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [isFetching, setIsFetching] = useState(false);
+  const [isFetchingGameSessions, setIsFetchingGameSessions] = useState(false);
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [gameSessionError, setGameSessionError] = useState<string | null>(null);
 
   const fetchOverview = useCallback(async (accessToken: string) => {
     setIsFetching(true);
@@ -179,6 +248,48 @@ export function AdminDashboard() {
     }
   }, []);
 
+  const fetchGameSessions = useCallback(
+    async (accessToken: string) => {
+      setIsFetchingGameSessions(true);
+      setGameSessionError(null);
+      const params = new URLSearchParams({
+        page: String(gameSessionPage),
+        pageSize: String(gameSessionPageSize),
+        status: gameSessionStatus,
+      });
+      const normalizedQuery = gameSessionQuery.trim();
+      if (normalizedQuery) params.set("q", normalizedQuery);
+
+      try {
+        const response = await fetch(`/api/admin/game-sessions?${params.toString()}`, {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+          cache: "no-store",
+        });
+        const data = (await response.json().catch(() => ({}))) as Partial<AdminGameSessionsPage> & {
+          error?: string;
+        };
+        if (!response.ok) {
+          setGameSessions(null);
+          setGameSessionError(data.error || `Admin game sessions API error: ${response.status}`);
+          return;
+        }
+
+        const nextPage = data as AdminGameSessionsPage;
+        setGameSessions(nextPage);
+        if (nextPage.page !== gameSessionPage) {
+          setGameSessionPage(nextPage.page);
+        }
+      } catch {
+        setGameSessionError("无法连接对局记录接口");
+      } finally {
+        setIsFetchingGameSessions(false);
+      }
+    },
+    [gameSessionPage, gameSessionPageSize, gameSessionQuery, gameSessionStatus]
+  );
+
   useEffect(() => {
     let mounted = true;
     supabase.auth.getSession().then(({ data }) => {
@@ -196,6 +307,7 @@ export function AdminDashboard() {
         void fetchOverview(nextSession.access_token);
       } else {
         setOverview(null);
+        setGameSessions(null);
       }
     });
 
@@ -204,6 +316,11 @@ export function AdminDashboard() {
       listener.subscription.unsubscribe();
     };
   }, [fetchOverview]);
+
+  useEffect(() => {
+    if (!session?.access_token) return;
+    void fetchGameSessions(session.access_token);
+  }, [fetchGameSessions, session?.access_token]);
 
   const filteredUsers = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -246,11 +363,13 @@ export function AdminDashboard() {
     await supabase.auth.signOut();
     setSession(null);
     setOverview(null);
+    setGameSessions(null);
     setPassword("");
   };
 
   const refresh = async () => {
-    if (session?.access_token) await fetchOverview(session.access_token);
+    if (!session?.access_token) return;
+    await Promise.all([fetchOverview(session.access_token), fetchGameSessions(session.access_token)]);
   };
 
   const updateCredits = async (userId: string, payload: { credits?: number; delta?: number }) => {
@@ -306,6 +425,11 @@ export function AdminDashboard() {
     await navigator.clipboard.writeText(generatedCodes.join("\n"));
     toast.success("兑换码已复制");
   };
+
+  const gameSessionRows = gameSessions?.sessions ?? [];
+  const gameSessionTotalPages = gameSessions?.totalPages ?? 1;
+  const canGoToPreviousGameSessionPage = gameSessionPage > 1 && !isFetchingGameSessions;
+  const canGoToNextGameSessionPage = gameSessionPage < gameSessionTotalPages && !isFetchingGameSessions;
 
   if (isAuthLoading) {
     return (
@@ -379,8 +503,8 @@ export function AdminDashboard() {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => void refresh()} disabled={isFetching}>
-              <RefreshCw className={isFetching ? "animate-spin" : ""} size={16} />
+            <Button variant="outline" size="sm" onClick={() => void refresh()} disabled={isFetching || isFetchingGameSessions}>
+              <RefreshCw className={isFetching || isFetchingGameSessions ? "animate-spin" : ""} size={16} />
               刷新
             </Button>
             <Button variant="ghost" size="sm" onClick={() => void handleSignOut()}>
@@ -417,7 +541,7 @@ export function AdminDashboard() {
                 icon={BadgeCheck}
                 label="完成对局"
                 value={String(overview.summary.completedSessions)}
-                detail={`${overview.recentSessions.length} 条最近记录`}
+                detail={`共 ${overview.summary.totalSessions} 条对局记录`}
               />
               <StatCard
                 icon={CreditCard}
@@ -432,6 +556,179 @@ export function AdminDashboard() {
                 detail="已兑换 / 总生成"
               />
             </section>
+
+            <Card className="rounded-md p-4">
+              <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div className="flex items-start gap-3">
+                  <div className="rounded-md border border-[var(--border-color)] bg-[var(--color-accent-bg)] p-2 text-[var(--color-gold-dark)]">
+                    <Gamepad2 size={18} />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-semibold">用户对局记录</h2>
+                    <p className="text-sm text-[var(--text-muted)]">按用户、模型或对局 ID 搜索，分页查看所有对局。</p>
+                  </div>
+                </div>
+                <div className="flex flex-col gap-2 md:flex-row md:items-center">
+                  <div className="relative w-full md:w-80">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" size={16} />
+                    <Input
+                      value={gameSessionQuery}
+                      onChange={(event) => {
+                        setGameSessionQuery(event.target.value);
+                        setGameSessionPage(1);
+                      }}
+                      placeholder="邮箱 / 用户 ID / 对局 ID / 模型"
+                      className="pl-9"
+                    />
+                  </div>
+                  <div className="flex rounded-md border border-[var(--border-color)] bg-[var(--bg-secondary)] p-1">
+                    {GAME_SESSION_STATUS_OPTIONS.map((option) => (
+                      <Button
+                        key={option.value}
+                        type="button"
+                        variant={gameSessionStatus === option.value ? "default" : "ghost"}
+                        size="sm"
+                        onClick={() => {
+                          setGameSessionStatus(option.value);
+                          setGameSessionPage(1);
+                        }}
+                        className="h-7 px-3"
+                      >
+                        {option.label}
+                      </Button>
+                    ))}
+                  </div>
+                  <Select
+                    value={String(gameSessionPageSize)}
+                    onValueChange={(value) => {
+                      setGameSessionPageSize(Number(value));
+                      setGameSessionPage(1);
+                    }}
+                  >
+                    <SelectTrigger className="w-full md:w-28">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ADMIN_GAME_SESSION_PAGE_SIZE_OPTIONS.map((pageSize) => (
+                        <SelectItem key={pageSize} value={String(pageSize)}>
+                          {pageSize} / 页
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {gameSessionError && (
+                <div className="mb-3 rounded-md border border-[var(--color-danger)] bg-[var(--color-danger-bg)] p-3 text-sm text-[var(--color-danger)]">
+                  {gameSessionError}
+                </div>
+              )}
+
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[1120px] border-collapse text-sm">
+                  <thead>
+                    <tr className="border-b border-[var(--border-color)] text-left text-xs uppercase text-[var(--text-muted)]">
+                      <th className="py-2 pr-4 font-medium">对局</th>
+                      <th className="py-2 pr-4 font-medium">用户</th>
+                      <th className="py-2 pr-4 font-medium">状态</th>
+                      <th className="py-2 pr-4 font-medium">胜方</th>
+                      <th className="py-2 pr-4 font-medium">配置</th>
+                      <th className="py-2 pr-4 font-medium">消耗 / 统计</th>
+                      <th className="py-2 font-medium">时间</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {isFetchingGameSessions && gameSessionRows.length === 0 && (
+                      <tr>
+                        <td className="py-6 text-[var(--text-muted)]" colSpan={7}>
+                          <span className="inline-flex items-center gap-2">
+                            <Loader2 className="animate-spin" size={14} />
+                            正在加载对局记录
+                          </span>
+                        </td>
+                      </tr>
+                    )}
+                    {!isFetchingGameSessions && gameSessionRows.length === 0 && (
+                      <tr>
+                        <td className="py-6 text-[var(--text-muted)]" colSpan={7}>暂无对局记录</td>
+                      </tr>
+                    )}
+                    {gameSessionRows.map((gameSession) => {
+                      const totalTokens = gameSession.aiPromptTokens + gameSession.aiCompletionTokens;
+                      const totalChars = gameSession.aiInputChars + gameSession.aiOutputChars;
+                      return (
+                        <tr key={gameSession.id} className="border-b border-[var(--border-color)]/70 align-top">
+                          <td className="py-3 pr-4">
+                            <div className="font-medium">{shortId(gameSession.id)}</div>
+                            <div className="text-xs text-[var(--text-muted)]">{gameSession.region || "-"}</div>
+                          </td>
+                          <td className="py-3 pr-4">
+                            <div className="font-medium">{gameSession.email || "No email"}</div>
+                            <div className="text-xs text-[var(--text-muted)]">{shortId(gameSession.userId)}</div>
+                          </td>
+                          <td className="py-3 pr-4">
+                            <Badge variant={gameSession.completed ? "success" : "secondary"}>
+                              {gameSession.completed ? "已完成" : "进行中"}
+                            </Badge>
+                          </td>
+                          <td className="py-3 pr-4">{winnerLabel(gameSession.winner)}</td>
+                          <td className="py-3 pr-4">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <Badge variant="outline">{gameSession.playerCount} 人</Badge>
+                              {gameSession.difficulty && <Badge variant="outline">{gameSession.difficulty}</Badge>}
+                              {gameSession.usedCustomKey && <Badge variant="warning">自有 Key</Badge>}
+                            </div>
+                            <div className="mt-1 max-w-64 truncate text-xs text-[var(--text-muted)]">
+                              {gameSession.modelUsed || "-"}
+                            </div>
+                          </td>
+                          <td className="py-3 pr-4">
+                            <div>AI 调用 {formatNumber(gameSession.aiCallsCount)} 次</div>
+                            <div className="text-xs text-[var(--text-muted)]">
+                              回合 {gameSession.roundsPlayed} · Token {formatNumber(totalTokens)} · 字符 {formatNumber(totalChars)}
+                            </div>
+                          </td>
+                          <td className="py-3">
+                            <div>{formatDate(gameSession.createdAt)}</div>
+                            <div className="text-xs text-[var(--text-muted)]">
+                              {gameSession.endedAt ? `结束 ${formatDate(gameSession.endedAt)}` : "未结束"} · {formatDuration(gameSession.durationSeconds)}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="mt-4 flex flex-col gap-3 border-t border-[var(--border-color)] pt-3 text-sm text-[var(--text-secondary)] md:flex-row md:items-center md:justify-between">
+                <div>
+                  第 {gameSessions?.page ?? gameSessionPage} / {gameSessionTotalPages} 页，共 {formatNumber(gameSessions?.total ?? 0)} 条
+                  {isFetchingGameSessions && <span className="ml-2 text-[var(--text-muted)]">刷新中</span>}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!canGoToPreviousGameSessionPage}
+                    onClick={() => setGameSessionPage((page) => Math.max(1, page - 1))}
+                  >
+                    <ChevronLeft size={16} />
+                    上一页
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!canGoToNextGameSessionPage}
+                    onClick={() => setGameSessionPage((page) => page + 1)}
+                  >
+                    下一页
+                    <ChevronRight size={16} />
+                  </Button>
+                </div>
+              </div>
+            </Card>
 
             <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
               <Card className="rounded-md p-4">
