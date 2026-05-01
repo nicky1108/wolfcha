@@ -68,6 +68,9 @@ const DAY_NIGHT_BLINK = {
 const dayBgm = getStaticAudioAssetUrl("/bgm/day.mp3");
 const nightBgm = getStaticAudioAssetUrl("/bgm/night.mp3");
 const NARRATOR_VOLUME = 0.85;
+const AUTO_ADVANCE_DIALOGUE_DELAY_MS = 500;
+const AUTO_ADVANCE_NEXT_AI_DELAY_MS = 250;
+const AUTO_ADVANCE_NEXT_ROUND_DELAY_MS = 500;
 
 const WC_EYE_FEATHER_VAR = "--wc-eye-feather";
 const WC_LID_VAR = "--wc-lid";
@@ -905,7 +908,6 @@ export default function Home() {
 
   const autoAdvanceTimeoutRef = useRef<number | null>(null);
   const lastAutoAdvanceSignatureRef = useRef<string | null>(null);
-  const autoAdvanceDelayMs = 2500;
   
   // Track when typing finishes to trigger auto-advance
   useEffect(() => {
@@ -969,7 +971,9 @@ export default function Home() {
 
       clearAutoAdvanceTimeout();
 
-      const delayMs = autoAdvanceDelayMs;
+      const delayMs = shouldAutoAdvanceToNextAI()
+        ? AUTO_ADVANCE_NEXT_AI_DELAY_MS
+        : AUTO_ADVANCE_DIALOGUE_DELAY_MS;
       autoAdvanceTimeoutRef.current = window.setTimeout(() => {
         void handleAdvanceDialogue();
       }, delayMs);
@@ -983,10 +987,9 @@ export default function Home() {
 
       clearAutoAdvanceTimeout();
 
-      const delayMs = 1500;
       autoAdvanceTimeoutRef.current = window.setTimeout(() => {
         void handleAdvanceDialogue();
-      }, delayMs);
+      }, AUTO_ADVANCE_NEXT_ROUND_DELAY_MS);
     }
   }, [
     currentDialogue,
@@ -1004,6 +1007,7 @@ export default function Home() {
     isRoleRevealOpen,
     isSettingsOpen,
     isWaitingForAI,
+    shouldAutoAdvanceToNextAI,
     showTable,
     speechSegmentCompletionTick,
     waitingForNextRound,

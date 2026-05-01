@@ -104,6 +104,44 @@ function sanitizeSeatMentions(text: string, players: Player[]): string {
   return out;
 }
 
+const SPEECH_TTS_TARGET_CHARS = 90;
+const SPEECH_TTS_MAX_MERGE_SEGMENTS = 2;
+
+function getSpeechSegmentLength(text: string): number {
+  return text.replace(/\s/g, "").length;
+}
+
+function groupSpeechSegmentsForTts(segments: string[]): string[] {
+  const grouped: string[] = [];
+  let pending: string[] = [];
+  let pendingLength = 0;
+
+  const flush = () => {
+    if (pending.length === 0) return;
+    grouped.push(pending.join("\n"));
+    pending = [];
+    pendingLength = 0;
+  };
+
+  for (const rawSegment of segments) {
+    const segment = rawSegment.trim();
+    if (!segment) continue;
+
+    pending.push(segment);
+    pendingLength += getSpeechSegmentLength(segment);
+
+    if (
+      pendingLength >= SPEECH_TTS_TARGET_CHARS ||
+      pending.length >= SPEECH_TTS_MAX_MERGE_SEGMENTS
+    ) {
+      flush();
+    }
+  }
+
+  flush();
+  return grouped;
+}
+
 function resolvePhasePrompt(
   phase: Phase,
   state: GameState,
@@ -931,7 +969,7 @@ export async function generateAISpeechSegments(
           }
 
           if (normalized.length > 0) {
-            return normalized;
+            return groupSpeechSegmentsForTts(normalized);
           }
         }
       }
@@ -940,12 +978,12 @@ export async function generateAISpeechSegments(
     }
 
     const objectExtracted = extractObjectSegments(sanitizedSpeech);
-    if (objectExtracted.length > 0) return objectExtracted;
+    if (objectExtracted.length > 0) return groupSpeechSegmentsForTts(objectExtracted);
 
     const extracted = extractQuotedSegments(sanitizedSpeech)
       .map((s) => s.trim().replace(/^['"]+|['"]+$/g, ""))
       .filter((s) => s.length > 0);
-    if (extracted.length > 0) return extracted;
+    if (extracted.length > 0) return groupSpeechSegmentsForTts(extracted);
 
     // 降级处理：按换行或句号分割
     const fallbackSegments = sanitizedSpeech
@@ -954,7 +992,7 @@ export async function generateAISpeechSegments(
       .map(s => s.trim().replace(/^["']+|["']+$/g, ""))  // 移除首尾引号
       .filter(s => s.length > 2);  // 过滤掉长度小于等于2的片段
     
-    if (fallbackSegments.length > 0) return fallbackSegments;
+    if (fallbackSegments.length > 0) return groupSpeechSegmentsForTts(fallbackSegments);
 
     const cleanedSingle = sanitizedSpeech
       .replace(/[\[\]]/g, "")
@@ -962,7 +1000,7 @@ export async function generateAISpeechSegments(
       .replace(/^["']+|["']+$/g, "")
       .trim();
 
-    return cleanedSingle.length > 0 ? [cleanedSingle] : ["（……）"];
+    return cleanedSingle.length > 0 ? groupSpeechSegmentsForTts([cleanedSingle]) : ["（……）"];
   } catch (error) {
     await aiLogger.log({
       type: "speech",
@@ -1005,17 +1043,47 @@ export async function generateAISpeechSegmentsStream(
   const startTime = Date.now();
   const { messages } = buildMessagesForPrompt(prompt);
 
-  // Track segments already emitted via streaming to prevent double-emit in fallback
-  const emittedSegments = new Set<string>();
+  // Track raw speech fragments while emitting larger TTS-friendly bubbles.
+  const seenSpeechSegments = new Set<string>();
+  const emittedTtsSegments: string[] = [];
+  let pendingSpeechSegments: string[] = [];
   let emittedCount = 0;
 
+  const emitTtsSegment = (segment: string) => {
+    const cleaned = segment.trim();
+    if (!cleaned || emittedTtsSegments.includes(cleaned)) return;
+    emittedTtsSegments.push(cleaned);
+    options.onSegmentReceived?.(cleaned, emittedCount++);
+  };
+
+  const flushPendingSpeechSegments = () => {
+    const grouped = groupSpeechSegmentsForTts(pendingSpeechSegments);
+    pendingSpeechSegments = [];
+    grouped.forEach(emitTtsSegment);
+  };
+
+  const queueSpeechSegment = (segment: string) => {
+    const sanitized = sanitizeSeatMentions(sanitizeModelArtifacts(segment), state.players);
+    if (!sanitized || seenSpeechSegments.has(sanitized)) return;
+
+    seenSpeechSegments.add(sanitized);
+    pendingSpeechSegments.push(sanitized);
+
+    const pendingLength = pendingSpeechSegments.reduce(
+      (sum, value) => sum + getSpeechSegmentLength(value),
+      0
+    );
+    if (
+      pendingLength >= SPEECH_TTS_TARGET_CHARS ||
+      pendingSpeechSegments.length >= SPEECH_TTS_MAX_MERGE_SEGMENTS
+    ) {
+      flushPendingSpeechSegments();
+    }
+  };
+
   const parser = new StreamingSpeechParser({
-    onSegmentReceived: (segment, index) => {
-      const sanitized = sanitizeSeatMentions(sanitizeModelArtifacts(segment), state.players);
-      if (sanitized && !emittedSegments.has(sanitized)) {
-        emittedSegments.add(sanitized);
-        options.onSegmentReceived?.(sanitized, emittedCount++);
-      }
+    onSegmentReceived: (segment) => {
+      queueSpeechSegment(segment);
     },
     onProgress: options.onProgress,
     onError: options.onError,
@@ -1042,14 +1110,15 @@ export async function generateAISpeechSegmentsStream(
       }
     }
     
-    console.log(`[streaming] done. total chunks: ${chunkCount}, segments emitted: ${parser.getSegmentCount()}, unique emitted: ${emittedSegments.size}`);
+    console.log(`[streaming] done. total chunks: ${chunkCount}, raw segments: ${parser.getSegmentCount()}, tts segments: ${emittedTtsSegments.length}`);
 
     // 结束解析
     const segments = parser.end();
+    flushPendingSpeechSegments();
 
     // 如果流式解析没有产生结果，回退到传统解析
-    // 注意：只有当 emittedSegments 也为空时才进行回退，避免重复发射
-    if (segments.length === 0 && emittedSegments.size === 0) {
+    // 注意：只有当 seenSpeechSegments 也为空时才进行回退，避免重复发射
+    if (segments.length === 0 && seenSpeechSegments.size === 0) {
       const cleanedSpeech = sanitizeModelArtifacts(stripMarkdownCodeFences(accumulatedContent));
       const sanitizedSpeech = sanitizeSeatMentions(cleanedSpeech, state.players);
 
@@ -1077,15 +1146,10 @@ export async function generateAISpeechSegmentsStream(
             }
 
             if (normalized.length > 0) {
-              // 通知回退解析的结果（只发射未发射过的）
-              normalized.forEach((seg) => {
-                if (!emittedSegments.has(seg)) {
-                  emittedSegments.add(seg);
-                  options.onSegmentReceived?.(seg, emittedCount++);
-                }
-              });
-              options.onComplete?.(normalized);
-              return normalized;
+              const grouped = groupSpeechSegmentsForTts(normalized);
+              grouped.forEach(emitTtsSegment);
+              options.onComplete?.(grouped);
+              return grouped;
             }
           }
         } catch {
@@ -1101,14 +1165,10 @@ export async function generateAISpeechSegmentsStream(
         .filter((s) => s.length > 2);
 
       if (fallbackSegments.length > 0) {
-        fallbackSegments.forEach((seg) => {
-          if (!emittedSegments.has(seg)) {
-            emittedSegments.add(seg);
-            options.onSegmentReceived?.(seg, emittedCount++);
-          }
-        });
-        options.onComplete?.(fallbackSegments);
-        return fallbackSegments;
+        const grouped = groupSpeechSegmentsForTts(fallbackSegments);
+        grouped.forEach(emitTtsSegment);
+        options.onComplete?.(grouped);
+        return grouped;
       }
 
       const cleanedSingle = sanitizedSpeech
@@ -1118,27 +1178,25 @@ export async function generateAISpeechSegmentsStream(
         .trim();
 
       const result = cleanedSingle.length > 0 ? [cleanedSingle] : ["（……）"];
-      result.forEach((seg) => {
-        if (!emittedSegments.has(seg)) {
-          emittedSegments.add(seg);
-          options.onSegmentReceived?.(seg, emittedCount++);
-        }
-      });
-      options.onComplete?.(result);
-      return result;
+      const grouped = groupSpeechSegmentsForTts(result);
+      grouped.forEach(emitTtsSegment);
+      options.onComplete?.(grouped);
+      return grouped;
     }
     
     // 如果流式已经发射了 segments 但 parser.end() 返回空，使用已发射的
-    if (segments.length === 0 && emittedSegments.size > 0) {
-      const emittedList = Array.from(emittedSegments);
-      options.onComplete?.(emittedList);
-      return emittedList;
+    if (segments.length === 0 && emittedTtsSegments.length > 0) {
+      options.onComplete?.(emittedTtsSegments);
+      return emittedTtsSegments;
     }
 
     // Sanitize all segments
-    const sanitizedSegments = segments.map((s) =>
-      sanitizeSeatMentions(sanitizeModelArtifacts(s), state.players)
+    const sanitizedSegments = groupSpeechSegmentsForTts(
+      segments.map((s) => sanitizeSeatMentions(sanitizeModelArtifacts(s), state.players))
     );
+    if (emittedTtsSegments.length === 0) {
+      sanitizedSegments.forEach(emitTtsSegment);
+    }
 
     await aiLogger.log({
       type: "speech",

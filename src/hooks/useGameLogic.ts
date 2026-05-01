@@ -153,6 +153,7 @@ export function useGameLogic() {
   const onBadgeSpeechEndRef = useRef<((state: GameState) => Promise<void>) | null>(null);
   const onPkSpeechEndRef = useRef<((state: GameState) => Promise<void>) | null>(null);
   const wwkBoomCheckRef = useRef<((state: GameState, wwk: Player) => Promise<boolean>) | null>(null);
+  const dailySummaryInFlightRef = useRef(new Set<string>());
 
   // 游戏启动相关 refs
   const pendingStartStateRef = useRef<GameState | null>(null);
@@ -465,6 +466,104 @@ export function useGameLogic() {
       .join("\n");
   }, []);
 
+  const startDailySummaryPrefetch = useCallback((state: GameState, options?: { force?: boolean }) => {
+    if (state.day <= 0) return;
+    if (!options?.force && state.dailySummaries?.[state.day]?.length) return;
+    if (!state.messages || state.messages.length === 0) return;
+
+    const summaryDay = state.day;
+    const key = `${state.gameId}:${summaryDay}:${options?.force ? "force" : "prefetch"}`;
+    if (dailySummaryInFlightRef.current.has(key)) return;
+    dailySummaryInFlightRef.current.add(key);
+
+    void maybeGenerateDailySummary(state, options)
+      .then((summarized) => {
+        const bullets = summarized.dailySummaries?.[summaryDay];
+        if (!bullets?.length) return;
+
+        setGameState((prev) => {
+          if (prev.gameId !== summarized.gameId || prev.day !== summaryDay) return prev;
+          if (!options?.force && prev.dailySummaryVoteData?.[summaryDay]) return prev;
+
+          const facts = summarized.dailySummaryFacts?.[summaryDay];
+          const voteData = summarized.dailySummaryVoteData?.[summaryDay];
+          return {
+            ...prev,
+            dailySummaries: { ...prev.dailySummaries, [summaryDay]: bullets },
+            dailySummaryFacts: facts
+              ? { ...prev.dailySummaryFacts, [summaryDay]: facts }
+              : prev.dailySummaryFacts,
+            dailySummaryVoteData: voteData
+              ? { ...(prev.dailySummaryVoteData ?? {}), [summaryDay]: voteData }
+              : prev.dailySummaryVoteData,
+          };
+        });
+      })
+      .catch(() => {})
+      .finally(() => {
+        dailySummaryInFlightRef.current.delete(key);
+      });
+  }, [maybeGenerateDailySummary, setGameState]);
+
+  const isCurrentSpeechRoundComplete = useCallback((state: GameState): boolean => {
+    if (!["DAY_SPEECH", "DAY_BADGE_SPEECH", "DAY_PK_SPEECH"].includes(state.phase)) return false;
+
+    const currentSeat = state.currentSpeakerSeat;
+    if (currentSeat === null) return false;
+
+    const getNextPkSeat = (): number | null => {
+      const pkTargets = state.pkTargets || [];
+      const currentIndex = pkTargets.indexOf(currentSeat);
+      const nextIndex = currentIndex + 1;
+      if (currentIndex === -1) return pkTargets[0] ?? null;
+      if (nextIndex >= pkTargets.length) return null;
+      return pkTargets[nextIndex];
+    };
+
+    const getNextCandidateSeat = (): number | null => {
+      const candidates = state.badge.candidates || [];
+      const aliveCandidateSeats = candidates.filter((seat) =>
+        state.players.some((p) => p.seat === seat && p.alive)
+      );
+      if (aliveCandidateSeats.length === 0) return null;
+
+      const total = state.players.length;
+      const cursor = currentSeat + 1;
+      for (let step = 0; step < total; step++) {
+        const seat = ((cursor + step) % total + total) % total;
+        if (aliveCandidateSeats.includes(seat)) return seat;
+      }
+      return null;
+    };
+
+    const startSeat = state.daySpeechStartSeat;
+    let nextSeat: number | null;
+    if (state.phase === "DAY_PK_SPEECH") {
+      nextSeat = getNextPkSeat();
+      return nextSeat === null;
+    }
+
+    if (state.phase === "DAY_BADGE_SPEECH") {
+      nextSeat = getNextCandidateSeat();
+      return nextSeat === null || (startSeat !== null && nextSeat === startSeat);
+    }
+
+    const sheriffSeat = state.badge.holderSeat;
+    const isSheriffAlive =
+      sheriffSeat !== null && state.players.some((p) => p.seat === sheriffSeat && p.alive);
+    const direction = state.speechDirection ?? "clockwise";
+    const sheriffIsStartSpeaker = startSeat === sheriffSeat;
+
+    if (isSheriffAlive) {
+      if (currentSeat === sheriffSeat) return true;
+      nextSeat = getNextAliveSeat(state, currentSeat, true, direction);
+      return !sheriffIsStartSpeaker && startSeat !== null && nextSeat === startSeat;
+    }
+
+    nextSeat = getNextAliveSeat(state, currentSeat, false, direction);
+    return nextSeat === null || (startSeat !== null && nextSeat === startSeat);
+  }, []);
+
   // ============================================
   // 特殊事件处理
   // ============================================
@@ -602,6 +701,9 @@ export function useGameLogic() {
     setPrefetchedSpeech,
     consumePrefetchedSpeech,
     setAfterLastWords: (cb) => { afterLastWordsRef.current = cb; },
+    onSpeechTextComplete: (state) => {
+      startDailySummaryPrefetch(state);
+    },
   });
 
   const { startLastWordsPhase, runAISpeech } = dayPhase;
@@ -634,11 +736,8 @@ export function useGameLogic() {
   badgeTransferRef.current = badgePhase.handleBadgeTransfer;
   onStartVoteRef.current = enterVotePhase;
   onBadgeSpeechEndRef.current = async (state: GameState) => {
-    const summarized = await maybeGenerateDailySummary(state);
-    if (summarized !== state) {
-      setGameState(summarized);
-    }
-    await badgePhase.startBadgeElectionPhase(summarized);
+    startDailySummaryPrefetch(state);
+    await badgePhase.startBadgeElectionPhase(state);
   };
   onPkSpeechEndRef.current = async (state: GameState) => {
     const token = getToken();
@@ -1815,9 +1914,13 @@ export function useGameLogic() {
     if (liveState.gameId !== startGameId) return;
     if (liveState.phase !== startPhase) return;
 
+    if (isCurrentSpeechRoundComplete(liveState)) {
+      startDailySummaryPrefetch(liveState);
+    }
+
     const token = getToken();
     await runDaySpeechAction(liveState, token, "ADVANCE_SPEAKER");
-  }, [humanPlayer, getToken, runDaySpeechAction]);
+  }, [humanPlayer, getToken, isCurrentSpeechRoundComplete, runDaySpeechAction, startDailySummaryPrefetch]);
 
   /** 下一轮按钮 */
   const handleNextRound = useCallback(async () => {
@@ -1906,7 +2009,11 @@ export function useGameLogic() {
     const revealedIdiotId2 = latestState.roleAbilities.idiotRevealed
       ? latestState.players.find((p) => p.role === "Idiot" && p.alive)?.playerId
       : undefined;
-    const aliveIds = latestState.players.filter((p) => p.alive && p.playerId !== revealedIdiotId2).map((p) => p.playerId);
+    const pkTargets =
+      latestState.pkSource === "vote" && Array.isArray(latestState.pkTargets) ? latestState.pkTargets : [];
+    const aliveIds = latestState.players
+      .filter((p) => p.alive && p.playerId !== revealedIdiotId2 && !pkTargets.includes(p.seat))
+      .map((p) => p.playerId);
     const allVoted = aliveIds.every((id) => typeof latestState.votes[id] === "number");
     
     console.log("[wolfcha] handleHumanVote: allVoted =", allVoted, "votes count =", Object.keys(latestState.votes).length, "alive count =", aliveIds.length);
@@ -2231,19 +2338,7 @@ export function useGameLogic() {
         !nextState.dailySummaries?.[nextState.day]?.length &&
         rawTranscript.length > 10000;
       if (shouldSummarizeEarly) {
-        void maybeGenerateDailySummary(nextState)
-          .then((summarized) => {
-            setGameState((prev) => {
-              if (prev.gameId !== summarized.gameId || prev.day !== summarized.day) return prev;
-              return {
-                ...prev,
-                dailySummaries: summarized.dailySummaries,
-                dailySummaryFacts: summarized.dailySummaryFacts,
-                dailySummaryVoteData: summarized.dailySummaryVoteData ?? prev.dailySummaryVoteData,
-              };
-            });
-          })
-          .catch(() => {});
+        startDailySummaryPrefetch(nextState);
       }
     }
 
@@ -2281,7 +2376,7 @@ export function useGameLogic() {
     // 不设置 waitingForNextRound，直接返回 shouldAdvanceToNextSpeaker: true
     // 让调用方立即调用 handleNextRound，避免单条消息时需要按两次回车的问题
     return { finished: true, shouldAdvanceToNextSpeaker: true, shouldAutoAdvanceToNextAI: false };
-  }, [clearDialogue, clearSpeechQueue, setIsWaitingForAI, setWaitingForNextRound, getSpeechQueue, advanceSpeechQueue, setGameState, isCurrentSegmentCommitted, markCurrentSegmentCommitted, isCurrentSegmentCompleted]);
+  }, [clearDialogue, clearSpeechQueue, setIsWaitingForAI, setWaitingForNextRound, getSpeechQueue, advanceSpeechQueue, setGameState, isCurrentSegmentCommitted, markCurrentSegmentCommitted, isCurrentSegmentCompleted, startDailySummaryPrefetch]);
 
   /** 切换暂停 */
   const togglePause = useCallback(() => {

@@ -32,6 +32,7 @@ export interface DayPhaseCallbacks {
   setPrefetchedSpeech: (prefetch: PrefetchedSpeech | null) => void;
   consumePrefetchedSpeech: (criteria: PrefetchCriteria) => string[] | null;
   setAfterLastWords: (callback: ((s: GameState) => Promise<void>) | null) => void;
+  onSpeechTextComplete?: (state: GameState, player: Player) => void;
 }
 
 export interface DayPhaseActions {
@@ -63,6 +64,7 @@ export function useDayPhase(
     setPrefetchedSpeech,
     consumePrefetchedSpeech,
     setAfterLastWords,
+    onSpeechTextComplete,
   } = callbacks;
 
   /** 判断是否为发言类阶段 */
@@ -152,6 +154,37 @@ export function useDayPhase(
     return { nextSeat, nextSpeakerIsAI };
   }, []);
 
+  const isSpeechRoundCompleteAfterCurrent = useCallback((state: GameState, nextSeat: number | null): boolean => {
+    if (nextSeat === null) return true;
+
+    if (state.phase === "DAY_PK_SPEECH") {
+      const pkTargets = state.pkTargets || [];
+      const currentSeat = state.currentSpeakerSeat ?? -1;
+      const currentIndex = pkTargets.indexOf(currentSeat);
+      return currentIndex >= 0 && currentIndex >= pkTargets.length - 1;
+    }
+
+    const startSeat = state.daySpeechStartSeat;
+    if (state.phase === "DAY_BADGE_SPEECH") {
+      return startSeat !== null && nextSeat === startSeat;
+    }
+
+    if (state.phase !== "DAY_SPEECH") return false;
+
+    const sheriffSeat = state.badge.holderSeat;
+    const isSheriffAlive =
+      sheriffSeat !== null && state.players.some((p) => p.seat === sheriffSeat && p.alive);
+    const currentSeat = state.currentSpeakerSeat;
+
+    if (isSheriffAlive) {
+      const sheriffIsStartSpeaker = startSeat === sheriffSeat;
+      if (currentSeat === sheriffSeat) return true;
+      return !sheriffIsStartSpeaker && startSeat !== null && nextSeat === startSeat;
+    }
+
+    return startSeat !== null && nextSeat === startSeat;
+  }, []);
+
   const prefetchNextAISpeech = useCallback(async (
     state: GameState,
     player: Player
@@ -231,6 +264,34 @@ export function useDayPhase(
     }
   }, [setPrefetchedSpeech]);
 
+  const handleSpeechTextComplete = useCallback((
+    baseState: GameState,
+    player: Player,
+    segments: string[]
+  ) => {
+    const postSpeechState = buildPostSpeechState(baseState, player, segments);
+    const { nextSeat, nextSpeakerIsAI } = resolveNextSpeaker(postSpeechState);
+    const roundComplete = isSpeechRoundCompleteAfterCurrent(postSpeechState, nextSeat);
+
+    if (roundComplete) {
+      onSpeechTextComplete?.(postSpeechState, player);
+      return;
+    }
+
+    if (nextSeat !== null && nextSpeakerIsAI) {
+      const nextPlayer = postSpeechState.players.find((p) => p.seat === nextSeat);
+      if (nextPlayer && !nextPlayer.isHuman && nextPlayer.alive) {
+        void prefetchNextAISpeech(postSpeechState, nextPlayer);
+      }
+    }
+  }, [
+    buildPostSpeechState,
+    isSpeechRoundCompleteAfterCurrent,
+    onSpeechTextComplete,
+    prefetchNextAISpeech,
+    resolveNextSpeaker,
+  ]);
+
   /** AI 发言（流式分段输出） */
   const runAISpeech = useCallback(async (
     state: GameState,
@@ -296,6 +357,7 @@ export function useDayPhase(
           options?.afterSpeech as ((s: unknown) => Promise<void>) | undefined
         );
         audioManager.addToQueue(task);
+        handleSpeechTextComplete(state, player, prefetchedSegments);
         // Prefetch remaining segments in order. Do not enqueue audio until the
         // matching text segment is actually displayed.
         let chain = Promise.resolve();
@@ -313,6 +375,7 @@ export function useDayPhase(
           player,
           options?.afterSpeech as ((s: unknown) => Promise<void>) | undefined
         );
+        handleSpeechTextComplete(state, player, prefetchedSegments);
       }
 
       currentSpeakingPlayerRef.current = null;
@@ -409,7 +472,7 @@ export function useDayPhase(
             }
           }
         },
-        onComplete: () => {
+        onComplete: (finalSegments) => {
           // 如果已超时，忽略完成回调
           if (isTimedOut) return;
 
@@ -421,15 +484,9 @@ export function useDayPhase(
             return;
           }
 
-          const { nextSeat, nextSpeakerIsAI } = resolveNextSpeaker(currentState);
-
-          if (nextSeat !== null && nextSpeakerIsAI) {
-            const postSpeechState = buildPostSpeechState(currentState, player, streamingSegmentsRef.current);
-            const nextPlayer = postSpeechState.players.find((p) => p.seat === nextSeat);
-            if (nextPlayer && !nextPlayer.isHuman && nextPlayer.alive) {
-              void prefetchNextAISpeech(postSpeechState, nextPlayer);
-            }
-          }
+          const completedSegments = finalSegments.length > 0 ? finalSegments : streamingSegmentsRef.current;
+          handleSpeechTextComplete(state, player, completedSegments);
+          const { nextSpeakerIsAI } = resolveNextSpeaker(currentState);
 
           // 标记流式生成完成，并传递下一个发言者信息
           finalizeSpeechQueue({ nextSpeakerIsAI });
@@ -478,6 +535,7 @@ export function useDayPhase(
     prefetchNextAISpeech,
     resolveNextSpeaker,
     buildPostSpeechState,
+    handleSpeechTextComplete,
     isSpeechLikePhase,
     t,
   ]);

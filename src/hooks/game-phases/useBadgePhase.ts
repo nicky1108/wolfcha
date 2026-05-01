@@ -532,6 +532,7 @@ export function useBadgePhase(
     try {
       setIsWaitingForAI(true);
       const aiVotes = await generateAIBadgeVoteBatch(currentState, aiPlayers);
+      const votePatch: Record<string, number> = {};
       for (const aiPlayer of aiPlayers) {
         let targetSeat = aiVotes[aiPlayer.playerId] ?? BADGE_VOTE_ABSTAIN;
 
@@ -540,16 +541,32 @@ export function useBadgePhase(
           targetSeat = candidates[Math.floor(Math.random() * candidates.length)];
         }
 
-        // 从最新状态获取投票，避免覆盖人类玩家的投票
-        const latestState = gameStateRef.current;
-        currentState = {
-          ...currentState,
+        votePatch[aiPlayer.playerId] = targetSeat;
+      }
+
+      if (Object.keys(votePatch).length > 0) {
+        let mergedState: GameState | null = null;
+        setGameState((prevState) => {
+          if (prevState.gameId !== currentState.gameId || prevState.phase !== "DAY_BADGE_ELECTION") {
+            return prevState;
+          }
+          mergedState = {
+            ...prevState,
+            badge: {
+              ...prevState.badge,
+              votes: { ...prevState.badge.votes, ...votePatch },
+            },
+          };
+          return mergedState;
+        });
+        currentState = mergedState ?? {
+          ...gameStateRef.current,
           badge: {
-            ...currentState.badge,
-            votes: { ...latestState.badge.votes, [aiPlayer.playerId]: targetSeat },
+            ...gameStateRef.current.badge,
+            votes: { ...gameStateRef.current.badge.votes, ...votePatch },
           },
         };
-        setGameState(currentState);
+        gameStateRef.current = currentState;
       }
     } finally {
       setIsWaitingForAI(false);

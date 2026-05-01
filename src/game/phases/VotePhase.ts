@@ -88,6 +88,8 @@ export class VotePhase extends GamePhase {
     setIsWaitingForAI(true);
     try {
       const aiVotes = await generateAIVoteBatch(currentState, aiPlayers);
+      const votePatch: Record<string, number> = {};
+      const reasonPatch: Record<string, string> = {};
       for (const aiPlayer of aiPlayers) {
         if (!isTokenValid(token)) {
           tokenInvalidated = true;
@@ -96,16 +98,24 @@ export class VotePhase extends GamePhase {
         const vote = aiVotes[aiPlayer.playerId];
         if (!vote) continue;
 
-        setGameState((prevState) => ({
-          ...prevState,
-          votes: { ...prevState.votes, [aiPlayer.playerId]: vote.seat },
-          voteReasons: { ...(prevState.voteReasons || {}), [aiPlayer.playerId]: vote.reason },
-        }));
+        votePatch[aiPlayer.playerId] = vote.seat;
+        reasonPatch[aiPlayer.playerId] = vote.reason;
+      }
+
+      if (!tokenInvalidated && Object.keys(votePatch).length > 0) {
         currentState = {
           ...currentState,
-          votes: { ...currentState.votes, [aiPlayer.playerId]: vote.seat },
-          voteReasons: { ...(currentState.voteReasons || {}), [aiPlayer.playerId]: vote.reason },
+          votes: { ...currentState.votes, ...votePatch },
+          voteReasons: { ...(currentState.voteReasons || {}), ...reasonPatch },
         };
+        setGameState((prevState) => {
+          if (prevState.gameId !== currentState.gameId || prevState.phase !== "DAY_VOTE") return prevState;
+          return {
+            ...prevState,
+            votes: { ...prevState.votes, ...votePatch },
+            voteReasons: { ...(prevState.voteReasons || {}), ...reasonPatch },
+          };
+        });
       }
     } finally {
       setIsWaitingForAI(false);
