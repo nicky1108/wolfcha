@@ -1,6 +1,44 @@
 import { NextRequest, NextResponse } from "next/server";
 
 const LOCALE_COOKIE = "wolfcha.locale";
+const DEFAULT_PUBLIC_ORIGIN = "http://localhost:3000";
+
+function normalizeOrigin(value: string | null | undefined): string | null {
+  const raw = value?.trim().replace(/\/+$/, "");
+  if (!raw) return null;
+  try {
+    return new URL(raw).origin;
+  } catch {
+    return null;
+  }
+}
+
+function firstHeaderValue(value: string | null): string | null {
+  return value?.split(",")[0]?.trim() || null;
+}
+
+function getRequestOrigin(request: NextRequest): string {
+  const configured = normalizeOrigin(process.env.NEXT_PUBLIC_APP_URL);
+  if (configured) return configured;
+
+  const forwardedProto = firstHeaderValue(request.headers.get("x-forwarded-proto"));
+  const forwardedHost = firstHeaderValue(request.headers.get("x-forwarded-host"));
+  const host = firstHeaderValue(request.headers.get("host"));
+  const protocol = forwardedProto || request.nextUrl.protocol.replace(/:$/, "") || "http";
+  const publicHost = forwardedHost || host;
+
+  if (publicHost) {
+    return `${protocol}://${publicHost}`;
+  }
+
+  return normalizeOrigin(request.url) || DEFAULT_PUBLIC_ORIGIN;
+}
+
+function buildLocaleRedirectUrl(request: NextRequest, pathname: string): URL {
+  const url = new URL(pathname, getRequestOrigin(request));
+  url.search = request.nextUrl.search;
+  return url;
+}
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -21,8 +59,7 @@ export function middleware(request: NextRequest) {
   // Check if user has a saved locale preference (cookie)
   const savedLocale = request.cookies.get(LOCALE_COOKIE)?.value;
   if (savedLocale === "zh") {
-    const url = new URL(pathname === "/" ? "/zh" : `/zh${pathname}`, request.url);
-    url.search = request.nextUrl.search;
+    const url = buildLocaleRedirectUrl(request, pathname === "/" ? "/zh" : `/zh${pathname}`);
     return NextResponse.redirect(url);
   }
   if (savedLocale === "en") {
@@ -37,8 +74,7 @@ export function middleware(request: NextRequest) {
     .some((lang) => lang.trim().toLowerCase().startsWith("zh"));
 
   if (prefersChinese) {
-    const url = new URL(pathname === "/" ? "/zh" : `/zh${pathname}`, request.url);
-    url.search = request.nextUrl.search;
+    const url = buildLocaleRedirectUrl(request, pathname === "/" ? "/zh" : `/zh${pathname}`);
     return NextResponse.redirect(url);
   }
 

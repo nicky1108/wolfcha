@@ -126,6 +126,7 @@ server {
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Forwarded-Host \$host;
         proxy_set_header Accept-Encoding \$wolfcha_static_encoding;
         proxy_cache wolfcha_static;
         proxy_cache_key "\$scheme|\$request_method|\$host|\$request_uri|\$wolfcha_static_encoding";
@@ -147,6 +148,7 @@ server {
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Forwarded-Host \$host;
         proxy_cache wolfcha_static;
         proxy_cache_key "\$scheme|\$request_method|\$host|\$request_uri";
         proxy_cache_lock on;
@@ -169,6 +171,7 @@ server {
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Forwarded-Host \$host;
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection "upgrade";
         proxy_read_timeout 300s;
