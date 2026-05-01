@@ -262,6 +262,7 @@ export const MODEL_IDS = {
     gpt55: "gpt-5.5",
     gpt54: "gpt-5.4",
     gpt54Mini: "gpt-5.4-mini",
+    gemini25FlashLite: "gemini-2.5-flash-lite",
     minimaxM27Highspeed: "MiniMax-M2.7-highspeed",
     minimaxM25Highspeed: "MiniMax-M2.5-highspeed",
     glm5: "glm-5",
@@ -295,6 +296,7 @@ export const BUILTIN_PLAYER_MODELS: ModelRef[] = [
   // { provider: "zenmux", model: MODEL_IDS.zenmux.doubaoSeed },
   { provider: "tokendance", model: MODEL_IDS.tokendance.gpt54 },
   { provider: "tokendance", model: MODEL_IDS.tokendance.gpt54Mini },
+  { provider: "tokendance", model: MODEL_IDS.tokendance.gemini25FlashLite },
   { provider: "tokendance", model: MODEL_IDS.tokendance.minimaxM27Highspeed, temperature: 1 },
   { provider: "tokendance", model: MODEL_IDS.tokendance.minimaxM25Highspeed, temperature: 1 },
   { provider: "tokendance", model: MODEL_IDS.tokendance.kimiK25 },
@@ -308,6 +310,7 @@ export const BUILTIN_PLAYER_MODELS: ModelRef[] = [
 export const AVAILABLE_MODELS: ModelRef[] = [
   { provider: "tokendance", model: MODEL_IDS.tokendance.gpt54 },
   { provider: "tokendance", model: MODEL_IDS.tokendance.gpt54Mini },
+  { provider: "tokendance", model: MODEL_IDS.tokendance.gemini25FlashLite },
   { provider: "tokendance", model: MODEL_IDS.tokendance.minimaxM27Highspeed, temperature: 1 },
   { provider: "tokendance", model: MODEL_IDS.tokendance.minimaxM25Highspeed, temperature: 1 },
   { provider: "tokendance", model: MODEL_IDS.tokendance.kimiK25 },

@@ -172,11 +172,36 @@ export function useDayPhase(
     setPrefetchedSpeech(basePrefetch);
 
     const collected: string[] = [];
+    const locale = getLocale() as AppLocale;
+    const voiceId = resolveFixedVoiceId(
+      player.agentProfile.persona?.voiceId,
+      player.agentProfile.persona?.gender,
+      player.agentProfile.persona?.age,
+      locale
+    );
+    let firstTtsPrefetchStarted = false;
+
+    const prefetchFirstSegmentAudio = (segment: string) => {
+      if (firstTtsPrefetchStarted) return;
+      if (!audioManager.isEnabled()) return;
+      const trimmed = segment.trim();
+      if (!trimmed) return;
+
+      firstTtsPrefetchStarted = true;
+      const task = {
+        id: makeAudioTaskId(voiceId, trimmed),
+        text: trimmed,
+        voiceId,
+        playerId: player.playerId,
+      };
+      void audioManager.ensureReady(task).catch(() => {});
+    };
 
     try {
       const segments = await generateAISpeechSegmentsStream(state, player, {
         onSegmentReceived: (segment) => {
           collected.push(segment);
+          prefetchFirstSegmentAudio(segment);
           setPrefetchedSpeech({
             ...basePrefetch,
             segments: [...collected],
@@ -184,6 +209,9 @@ export function useDayPhase(
           });
         },
         onComplete: (finalSegments) => {
+          if (finalSegments[0]) {
+            prefetchFirstSegmentAudio(finalSegments[0]);
+          }
           setPrefetchedSpeech({
             ...basePrefetch,
             segments: finalSegments,

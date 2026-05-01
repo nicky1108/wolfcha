@@ -15,6 +15,9 @@ export function makeAudioTaskId(voiceId: string, text: string) {
 type PlayState = "idle" | "playing" | "loading";
 type AudioTaskEvent = { type: "start" | "end"; task: AudioTask };
 
+const TTS_REQUEST_TIMEOUT_MS = 20000;
+const TTS_METADATA_TIMEOUT_MS = 5000;
+
 class AudioManager {
   private queue: AudioTask[] = [];
   private currentTask: AudioTask | null = null;
@@ -132,12 +135,20 @@ class AudioManager {
 
   private async fetchAndCache(task: AudioTask) {
     const headers = await this.buildTtsHeaders();
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), TTS_REQUEST_TIMEOUT_MS);
 
-    const response = await fetch("/api/tts", {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ text: task.text, voiceId: task.voiceId }),
-    });
+    let response: Response;
+    try {
+      response = await fetch("/api/tts", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ text: task.text, voiceId: task.voiceId }),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     if (!response.ok) {
       const body = await response.text().catch(() => "");
@@ -158,8 +169,13 @@ class AudioManager {
     return await new Promise((resolve) => {
       const a = new Audio();
       a.preload = "metadata";
+      let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
       const cleanup = () => {
+        if (timeoutId !== null) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
         a.onloadedmetadata = null;
         a.onerror = null;
       };
@@ -173,6 +189,11 @@ class AudioManager {
         cleanup();
         resolve(0);
       };
+
+      timeoutId = setTimeout(() => {
+        cleanup();
+        resolve(0);
+      }, TTS_METADATA_TIMEOUT_MS);
 
       a.src = objectUrl;
     });
@@ -297,6 +318,11 @@ class AudioManager {
 
     } catch (error) {
       console.error("AudioManager error:", error);
+      const failedTask = this.currentTask;
+      if (failedTask) {
+        this.onPlayEnd?.(failedTask.playerId);
+        this.emit({ type: "end", task: failedTask });
+      }
       // 发生错误，结束当前任务，继续下一个
       this.state = "idle";
       this.currentTask = null;

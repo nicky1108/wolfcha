@@ -17,6 +17,7 @@ test("default TokenDance model uses MiniMax highspeed and player pool excludes g
   assert.ok(playerPoolMatch, "built-in player model pool should be declared");
   assert.doesNotMatch(playerPoolMatch[0], /MODEL_IDS\.tokendance\.gpt55/);
   assert.match(playerPoolMatch[0], /MODEL_IDS\.tokendance\.gpt54/);
+  assert.match(playerPoolMatch[0], /MODEL_IDS\.tokendance\.gemini25FlashLite/);
   assert.match(playerPoolMatch[0], /MODEL_IDS\.tokendance\.qwen35Plus/);
   assert.match(playerPoolMatch[0], /MODEL_IDS\.tokendance\.minimaxM25Highspeed/);
 });
