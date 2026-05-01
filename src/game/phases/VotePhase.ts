@@ -16,7 +16,7 @@ import { getI18n } from "@/i18n/translator";
 import {
   addSystemMessage,
   checkWinCondition,
-  generateAIVote,
+  generateAIVoteBatch,
   killPlayer,
   tallyVotes,
   transitionPhase,
@@ -87,16 +87,14 @@ export class VotePhase extends GamePhase {
     let tokenInvalidated = false;
     setIsWaitingForAI(true);
     try {
+      const aiVotes = await generateAIVoteBatch(currentState, aiPlayers);
       for (const aiPlayer of aiPlayers) {
         if (!isTokenValid(token)) {
           tokenInvalidated = true;
           break;
         }
-        const vote = await generateAIVote(currentState, aiPlayer);
-        if (!isTokenValid(token)) {
-          tokenInvalidated = true;
-          break;
-        }
+        const vote = aiVotes[aiPlayer.playerId];
+        if (!vote) continue;
 
         setGameState((prevState) => ({
           ...prevState,

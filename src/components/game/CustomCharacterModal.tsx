@@ -30,7 +30,7 @@ interface CustomCharacterModalProps {
 
 type ViewMode = "list" | "create" | "edit";
 
-const DEFAULT_AI_CHARACTER_MODEL = MODEL_IDS.tokendance.qwen36Plus;
+const DEFAULT_AI_CHARACTER_MODEL = MODEL_IDS.tokendance.minimaxM27Highspeed;
 const AI_VOICE_MATCH_KEYWORDS = "逻辑、冷静、温柔、活泼、强势、南方、港普、播音、真诚、热情、简洁";
 
 export function CustomCharacterModal({

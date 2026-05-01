@@ -8,7 +8,7 @@ import { gameStateAtom } from "@/store/game-machine";
 import {
   transitionPhase,
   addSystemMessage,
-  generateAIBadgeVote,
+  generateAIBadgeVoteBatch,
   generateAIBadgeSignupBatch,
   generateBadgeTransfer,
   BADGE_VOTE_ABSTAIN,
@@ -530,15 +530,10 @@ export function useBadgePhase(
     setGameState(currentState);
     const aiPlayers = currentState.players.filter((p) => p.alive && !p.isHuman && !candidates.includes(p.seat));
     try {
+      setIsWaitingForAI(true);
+      const aiVotes = await generateAIBadgeVoteBatch(currentState, aiPlayers);
       for (const aiPlayer of aiPlayers) {
-        setIsWaitingForAI(true);
-        let targetSeat: number;
-        try {
-          targetSeat = await generateAIBadgeVote(currentState, aiPlayer);
-        } catch (e) {
-          console.warn("[wolfcha] AI badge vote threw, treating as abstain", e);
-          targetSeat = BADGE_VOTE_ABSTAIN;
-        }
+        let targetSeat = aiVotes[aiPlayer.playerId] ?? BADGE_VOTE_ABSTAIN;
 
         // Abstain (-1) is recorded as-is; only correct non-abstain to a valid candidate
         if (targetSeat !== BADGE_VOTE_ABSTAIN && candidates.length > 0 && !candidates.includes(targetSeat)) {

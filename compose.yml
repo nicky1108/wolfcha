@@ -20,9 +20,8 @@ services:
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
       AUTH_SECRET: ${AUTH_SECRET:?AUTH_SECRET is required}
       PORT: "7860"
-      HOSTNAME: "0.0.0.0"
-    ports:
-      - "127.0.0.1:7860:7860"
+      HOSTNAME: "127.0.0.1"
+    network_mode: host
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:7860/api/health"]

@@ -2279,7 +2279,7 @@
       "title": "AI 生成角色",
       "description": "复制下面的提示词发送给任意 AI 工具，让它生成可导入的角色 JSON。",
       "directTitle": "直接调用模型生成",
-      "directDescription": "使用已配置好的模型生成角色并立即保存，默认使用 qwen3.6-plus。",
+      "directDescription": "使用已配置好的模型生成角色并立即保存，默认使用 MiniMax-M2.7-highspeed。",
       "modelLabel": "生成模型",
       "preferenceLabel": "偏好",
       "preferencePlaceholder": "例如：强势归票、冷静律师、南方口音、幽默但不油腻",

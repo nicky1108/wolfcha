@@ -2197,7 +2197,7 @@
       "title": "AI generate characters",
       "description": "Copy this prompt and send it to any AI tool to generate importable character JSON.",
       "directTitle": "Generate with a configured model",
-      "directDescription": "Use an already configured model to generate and save a character. Defaults to qwen3.6-plus.",
+      "directDescription": "Use an already configured model to generate and save a character. Defaults to MiniMax-M2.7-highspeed.",
       "modelLabel": "Generation model",
       "preferenceLabel": "Preference",
       "preferencePlaceholder": "e.g., forceful vote leader, calm lawyer, southern accent, witty but natural",

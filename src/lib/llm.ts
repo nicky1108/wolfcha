@@ -586,7 +586,7 @@ export async function generateCompletionBatch(
   const data: unknown = await response.json();
   const results = isRecord(data) && Array.isArray(data.results) ? data.results : [];
 
-  return results.map((item): BatchCompletionResult => {
+  return results.map((item, index): BatchCompletionResult => {
     if (!isRecord(item) || item.ok !== true) {
       return {
         ok: false,
@@ -600,6 +600,26 @@ export async function generateCompletionBatch(
     if (!assistantMessage) {
       return { ok: false, error: "No response from model" };
     }
+    const request = resolvedRequests[index];
+    const inputChars = request?.messages.reduce((sum, m) => {
+      if (typeof m.content === "string") return sum + m.content.length;
+      if (Array.isArray(m.content)) {
+        return sum + m.content.reduce((s, p) => s + ("text" in p ? p.text.length : 0), 0);
+      }
+      return sum;
+    }, 0) ?? 0;
+    gameStatsTracker.addAiCall({
+      inputChars,
+      outputChars: assistantMessage.content.length,
+      promptTokens: raw.usage?.prompt_tokens,
+      completionTokens: raw.usage?.completion_tokens,
+    });
+    gameSessionTracker.addAiCall({
+      inputChars,
+      outputChars: assistantMessage.content.length,
+      promptTokens: raw.usage?.prompt_tokens,
+      completionTokens: raw.usage?.completion_tokens,
+    });
     return {
       ok: true,
       content: stripReasoningArtifacts(assistantMessage.content),

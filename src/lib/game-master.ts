@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from "uuid";
 import { generateCompletion, generateCompletionBatch, generateCompletionStream, mergeOptionsFromModelRef, stripMarkdownCodeFences, stripReasoningArtifacts, type LLMMessage } from "./llm";
-import type { ChatCompletionResponse } from "./llm";
+import type { BatchCompletionResult, ChatCompletionResponse, GenerateOptions } from "./llm";
 import { StreamingSpeechParser } from "./streaming-speech-parser";
 import {
   type GameState,
@@ -1190,67 +1190,91 @@ export async function generateAISpeechSegmentsStream(
   }
 }
 
-export async function generateAIVote(
-  state: GameState,
-  player: Player
-): Promise<{ seat: number; reason: string }> {
-  const { t } = getI18n();
-  const prompt = resolvePhasePrompt("DAY_VOTE", state, player);
+type AIVoteDecision = { seat: number; reason: string };
+
+const VOTE_DECISION_MAX_TOKENS = 96;
+const BADGE_VOTE_DECISION_MAX_TOKENS = 32;
+
+function getVoteEligiblePlayers(state: GameState, player: Player): Player[] {
   const eligibleSeats = state.pkSource === "vote" && state.pkTargets && state.pkTargets.length > 0
     ? new Set(state.pkTargets)
     : null;
-  const alivePlayers = state.players.filter(
+  return state.players.filter(
     (p) => p.alive && p.playerId !== player.playerId && (!eligibleSeats || eligibleSeats.has(p.seat))
   );
-  const startTime = Date.now();
-  const { messages } = buildMessagesForPrompt(prompt);
+}
 
-  let result: { content: string; raw: ChatCompletionResponse };
+function fallbackAIVote(player: Player, alivePlayers: Player[], t: ReturnType<typeof getI18n>["t"]): AIVoteDecision {
+  if (alivePlayers.length === 0) {
+    return { seat: player.seat, reason: t("gameMaster.voteFallback.noTargets") };
+  }
+  return {
+    seat: alivePlayers[Math.floor(Math.random() * alivePlayers.length)].seat,
+    reason: t("gameMaster.voteFallback.randomPick"),
+  };
+}
+
+function parseAIVoteContent(
+  content: string,
+  alivePlayers: Player[],
+  t: ReturnType<typeof getI18n>["t"]
+): AIVoteDecision | null {
+  const cleaned = stripMarkdownCodeFences(content).trim();
+  const validSeats = alivePlayers.map((p) => p.seat);
+
   try {
-    result = await generateCompletion(mergeOptionsFromModelRef(player.agentProfile!.modelRef, {
+    const parsed = JSON.parse(cleaned) as { seat?: number; reason?: string };
+    const seat = typeof parsed.seat === "number" ? parsed.seat - 1 : NaN;
+    if (Number.isFinite(seat) && validSeats.includes(seat)) {
+      const reason = typeof parsed.reason === "string" ? parsed.reason.trim() : "";
+      return { seat, reason: reason || t("gameMaster.voteFallback.missingReason") };
+    }
+  } catch {
+    // Fallback to regex parsing below.
+  }
+
+  const match = cleaned.match(/\d+/);
+  if (match) {
+    const seat = parseInt(match[0], 10) - 1;
+    if (validSeats.includes(seat)) {
+      return { seat, reason: t("gameMaster.voteFallback.parseSeatOnly") };
+    }
+  }
+
+  return null;
+}
+
+function buildAIVoteRequest(state: GameState, player: Player): { messages: LLMMessage[]; request: GenerateOptions } {
+  const prompt = resolvePhasePrompt("DAY_VOTE", state, player);
+  const { messages } = buildMessagesForPrompt(prompt);
+  return {
+    messages,
+    request: mergeOptionsFromModelRef(player.agentProfile!.modelRef, {
       model: player.agentProfile!.modelRef.model,
       messages,
       temperature: GAME_TEMPERATURE.ACTION,
+      max_tokens: VOTE_DECISION_MAX_TOKENS,
       response_format: { type: "json_object" },
-    }));
+    }),
+  };
+}
+
+export async function generateAIVote(
+  state: GameState,
+  player: Player
+): Promise<AIVoteDecision> {
+  const { t } = getI18n();
+  const alivePlayers = getVoteEligiblePlayers(state, player);
+  const startTime = Date.now();
+  const { messages, request } = buildAIVoteRequest(state, player);
+
+  let result: { content: string; raw: ChatCompletionResponse };
+  try {
+    result = await generateCompletion(request);
 
     const rawContent = result.content;
     const cleanedVote = stripMarkdownCodeFences(rawContent);
-    const cleaned = cleanedVote.trim();
-    
-    let parsedResult: { seat: number; reason: string } | null = null;
-    
-    try {
-      const parsed = JSON.parse(cleaned) as { seat?: number; reason?: string };
-      const seat = typeof parsed.seat === "number" ? parsed.seat - 1 : NaN;
-      const validSeats = alivePlayers.map((p) => p.seat);
-      if (Number.isFinite(seat) && validSeats.includes(seat)) {
-        const reason = typeof parsed.reason === "string" ? parsed.reason.trim() : "";
-        parsedResult = { seat, reason: reason || t("gameMaster.voteFallback.missingReason") };
-      }
-    } catch {
-      // Fallback to regex parsing below
-    }
-
-    if (!parsedResult) {
-      const match = cleaned.match(/\d+/);
-      if (match) {
-        const seat = parseInt(match[0], 10) - 1;
-        const validSeats = alivePlayers.map((p) => p.seat);
-        if (validSeats.includes(seat)) {
-          parsedResult = { seat, reason: t("gameMaster.voteFallback.parseSeatOnly") };
-        }
-      }
-    }
-
-    if (!parsedResult) {
-      if (alivePlayers.length === 0) {
-        parsedResult = { seat: player.seat, reason: t("gameMaster.voteFallback.noTargets") };
-      } else {
-        const fallback = alivePlayers[Math.floor(Math.random() * alivePlayers.length)].seat;
-        parsedResult = { seat: fallback, reason: t("gameMaster.voteFallback.randomPick") };
-      }
-    }
+    const parsedResult = parseAIVoteContent(cleanedVote, alivePlayers, t) ?? fallbackAIVote(player, alivePlayers, t);
 
     // Log with both raw and parsed data
     await aiLogger.log({
@@ -1272,9 +1296,7 @@ export async function generateAIVote(
 
     return parsedResult;
   } catch (error) {
-    const fallbackResult = alivePlayers.length === 0
-      ? { seat: player.seat, reason: t("gameMaster.voteFallback.noTargets") }
-      : { seat: alivePlayers[Math.floor(Math.random() * alivePlayers.length)].seat, reason: t("gameMaster.voteFallback.randomPick") };
+    const fallbackResult = fallbackAIVote(player, alivePlayers, t);
     
     await aiLogger.log({
       type: "vote",
@@ -1293,6 +1315,84 @@ export async function generateAIVote(
 
     return fallbackResult;
   }
+}
+
+export async function generateAIVoteBatch(
+  state: GameState,
+  players: Player[]
+): Promise<Record<string, AIVoteDecision>> {
+  if (!players || players.length === 0) return {};
+
+  const { t } = getI18n();
+  const startedAt = Date.now();
+  const contexts = players.map((player) => ({
+    player,
+    alivePlayers: getVoteEligiblePlayers(state, player),
+    ...buildAIVoteRequest(state, player),
+  }));
+  const out: Record<string, AIVoteDecision> = {};
+
+  let results: BatchCompletionResult[] = [];
+  try {
+    results = await generateCompletionBatch(contexts.map((ctx) => ctx.request));
+  } catch (error) {
+    await Promise.all(contexts.map(async (ctx) => {
+      const fallback = fallbackAIVote(ctx.player, ctx.alivePlayers, t);
+      out[ctx.player.playerId] = fallback;
+      await aiLogger.log({
+        type: "vote",
+        request: {
+          model: ctx.player.agentProfile!.modelRef.model,
+          messages: ctx.messages,
+          player: { playerId: ctx.player.playerId, displayName: ctx.player.displayName, seat: ctx.player.seat, role: ctx.player.role },
+        },
+        response: { content: "", parsed: fallback, duration: Date.now() - startedAt },
+        error: String(error),
+      });
+    }));
+    return out;
+  }
+
+  await Promise.all(contexts.map(async (ctx, index) => {
+    const result = results[index];
+    if (!result || result.ok !== true) {
+      const fallback = fallbackAIVote(ctx.player, ctx.alivePlayers, t);
+      out[ctx.player.playerId] = fallback;
+      await aiLogger.log({
+        type: "vote",
+        request: {
+          model: ctx.player.agentProfile!.modelRef.model,
+          messages: ctx.messages,
+          player: { playerId: ctx.player.playerId, displayName: ctx.player.displayName, seat: ctx.player.seat, role: ctx.player.role },
+        },
+        response: { content: "", parsed: fallback, duration: Date.now() - startedAt },
+        error: result?.ok === false ? result.error : "Missing batch result",
+      });
+      return;
+    }
+
+    const cleanedVote = stripMarkdownCodeFences(result.content);
+    const parsed = parseAIVoteContent(cleanedVote, ctx.alivePlayers, t) ?? fallbackAIVote(ctx.player, ctx.alivePlayers, t);
+    out[ctx.player.playerId] = parsed;
+    await aiLogger.log({
+      type: "vote",
+      request: {
+        model: ctx.player.agentProfile!.modelRef.model,
+        messages: ctx.messages,
+        player: { playerId: ctx.player.playerId, displayName: ctx.player.displayName, seat: ctx.player.seat, role: ctx.player.role },
+      },
+      response: {
+        content: cleanedVote,
+        raw: result.content,
+        rawResponse: JSON.stringify(result.raw, null, 2),
+        finishReason: result.raw.choices?.[0]?.finish_reason,
+        parsed,
+        duration: Date.now() - startedAt,
+      },
+    });
+  }));
+
+  return out;
 }
 
 /** Sentinel for abstain when AI fails to vote or parse. Counting logic skips -1 via aliveBySeat.has(seat). */
@@ -1496,21 +1596,46 @@ export async function generateAIBadgeSignupBatch(
   return parsedByPlayer;
 }
 
+function getBadgeVoteEligiblePlayers(state: GameState, player: Player): Player[] {
+  const candidates = Array.isArray(state.badge?.candidates) ? state.badge.candidates : [];
+  return state.players
+    .filter((p) => p.alive && p.playerId !== player.playerId)
+    .filter((p) => (candidates.length > 0 ? candidates.includes(p.seat) : true));
+}
+
+function parseBadgeVoteContent(content: string, validSeats: number[]): number {
+  const cleaned = stripMarkdownCodeFences(content);
+  const match = cleaned.match(/\d+/);
+  if (!match) return BADGE_VOTE_ABSTAIN;
+
+  const seat = parseInt(match[0], 10) - 1;
+  return validSeats.includes(seat) ? seat : BADGE_VOTE_ABSTAIN;
+}
+
+function buildAIBadgeVoteRequest(state: GameState, player: Player): { messages: LLMMessage[]; request: GenerateOptions } {
+  const prompt = resolvePhasePrompt("DAY_BADGE_ELECTION", state, player);
+  const { messages } = buildMessagesForPrompt(prompt);
+  return {
+    messages,
+    request: mergeOptionsFromModelRef(player.agentProfile!.modelRef, {
+      model: player.agentProfile!.modelRef.model,
+      messages,
+      temperature: GAME_TEMPERATURE.ACTION,
+      max_tokens: BADGE_VOTE_DECISION_MAX_TOKENS,
+    }),
+  };
+}
+
 export async function generateAIBadgeVote(
   state: GameState,
   player: Player
 ): Promise<number> {
-  const prompt = resolvePhasePrompt("DAY_BADGE_ELECTION", state, player);
-  const alivePlayers = state.players.filter((p) => p.alive && p.playerId !== player.playerId);
+  const alivePlayers = getBadgeVoteEligiblePlayers(state, player);
   const startTime = Date.now();
-  const { messages } = buildMessagesForPrompt(prompt);
+  const { messages, request } = buildAIBadgeVoteRequest(state, player);
 
   try {
-    const result = await generateCompletion(mergeOptionsFromModelRef(player.agentProfile!.modelRef, {
-      model: player.agentProfile!.modelRef.model,
-      messages,
-      temperature: GAME_TEMPERATURE.ACTION,
-    }));
+    const result = await generateCompletion(request);
 
     const cleanedBadgeVote = stripMarkdownCodeFences(result.content);
 
@@ -1530,17 +1655,7 @@ export async function generateAIBadgeVote(
       },
     });
 
-    const match = cleanedBadgeVote.match(/\d+/);
-    if (match) {
-      const seat = parseInt(match[0]) - 1;
-      const validSeats = alivePlayers.map((p) => p.seat);
-      if (validSeats.includes(seat)) {
-        return seat;
-      }
-    }
-
-    // Parse failed or invalid seat: treat as abstain instead of random to avoid stuck flow
-    return BADGE_VOTE_ABSTAIN;
+    return parseBadgeVoteContent(cleanedBadgeVote, alivePlayers.map((p) => p.seat));
   } catch (error) {
     // Network/API error: treat as abstain so the phase does not get stuck
     console.warn("[wolfcha] generateAIBadgeVote failed, treating as abstain:", error);
@@ -1556,6 +1671,80 @@ export async function generateAIBadgeVote(
     });
     return BADGE_VOTE_ABSTAIN;
   }
+}
+
+export async function generateAIBadgeVoteBatch(
+  state: GameState,
+  players: Player[]
+): Promise<Record<string, number>> {
+  if (!players || players.length === 0) return {};
+
+  const startedAt = Date.now();
+  const contexts = players.map((player) => ({
+    player,
+    validSeats: getBadgeVoteEligiblePlayers(state, player).map((p) => p.seat),
+    ...buildAIBadgeVoteRequest(state, player),
+  }));
+  const out: Record<string, number> = {};
+
+  let results: BatchCompletionResult[] = [];
+  try {
+    results = await generateCompletionBatch(contexts.map((ctx) => ctx.request));
+  } catch (error) {
+    await Promise.all(contexts.map(async (ctx) => {
+      out[ctx.player.playerId] = BADGE_VOTE_ABSTAIN;
+      await aiLogger.log({
+        type: "badge_vote",
+        request: {
+          model: ctx.player.agentProfile!.modelRef.model,
+          messages: ctx.messages,
+          player: { playerId: ctx.player.playerId, displayName: ctx.player.displayName, seat: ctx.player.seat, role: ctx.player.role },
+        },
+        response: { content: "", parsed: BADGE_VOTE_ABSTAIN, duration: Date.now() - startedAt },
+        error: String(error),
+      });
+    }));
+    return out;
+  }
+
+  await Promise.all(contexts.map(async (ctx, index) => {
+    const result = results[index];
+    if (!result || result.ok !== true) {
+      out[ctx.player.playerId] = BADGE_VOTE_ABSTAIN;
+      await aiLogger.log({
+        type: "badge_vote",
+        request: {
+          model: ctx.player.agentProfile!.modelRef.model,
+          messages: ctx.messages,
+          player: { playerId: ctx.player.playerId, displayName: ctx.player.displayName, seat: ctx.player.seat, role: ctx.player.role },
+        },
+        response: { content: "", parsed: BADGE_VOTE_ABSTAIN, duration: Date.now() - startedAt },
+        error: result?.ok === false ? result.error : "Missing batch result",
+      });
+      return;
+    }
+
+    const cleanedBadgeVote = stripMarkdownCodeFences(result.content);
+    const parsed = parseBadgeVoteContent(cleanedBadgeVote, ctx.validSeats);
+    out[ctx.player.playerId] = parsed;
+    await aiLogger.log({
+      type: "badge_vote",
+      request: {
+        model: ctx.player.agentProfile!.modelRef.model,
+        messages: ctx.messages,
+        player: { playerId: ctx.player.playerId, displayName: ctx.player.displayName, seat: ctx.player.seat, role: ctx.player.role },
+      },
+      response: {
+        content: cleanedBadgeVote,
+        raw: result.content,
+        rawResponse: JSON.stringify(result.raw, null, 2),
+        finishReason: result.raw.choices?.[0]?.finish_reason,
+        duration: Date.now() - startedAt,
+      },
+    });
+  }));
+
+  return out;
 }
 
 export async function generateBadgeTransfer(
