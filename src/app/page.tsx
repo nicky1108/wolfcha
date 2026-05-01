@@ -57,6 +57,7 @@ import { useGameAnalysis } from "@/hooks/useGameAnalysis";
 import { supabase } from "@/lib/supabase";
 import { consumeGameCredit } from "@/lib/credits-client";
 import { STANDARD_GAME_CREDIT_COST } from "@/lib/game-credit-cost";
+import { getStaticAudioAssetUrl } from "@/lib/static-audio-assets";
 
 const RITUAL_CUE_DURATION_SECONDS = 2.2;
 const DAY_NIGHT_BLINK = {
@@ -64,8 +65,8 @@ const DAY_NIGHT_BLINK = {
   holdMs: 120,
   openMs: 620,
 };
-const dayBgm = "/bgm/day.mp3";
-const nightBgm = "/bgm/night.mp3";
+const dayBgm = getStaticAudioAssetUrl("/bgm/day.mp3");
+const nightBgm = getStaticAudioAssetUrl("/bgm/night.mp3");
 const NARRATOR_VOLUME = 0.85;
 
 const WC_EYE_FEATHER_VAR = "--wc-eye-feather";

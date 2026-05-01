@@ -4,6 +4,7 @@
  */
 
 import type { AppLocale } from "./voice-constants";
+import { getStaticAudioAssetUrl } from "./static-audio-assets";
 
 // 旁白音色 ID - Chinese
 export const NARRATOR_VOICE_ID = "Chinese (Mandarin)_Mature_Woman";
@@ -114,7 +115,7 @@ export const getPlayerDiedKey = (seat: number): NarratorTextKey | null => {
 
 // 旁白音频文件路径映射 (支持多语言)
 export const getNarratorAudioPath = (key: NarratorTextKey, locale: AppLocale = "zh"): string => {
-  return `/audio/narrator/${locale}/${key}.mp3`;
+  return getStaticAudioAssetUrl(`/audio/narrator/${locale}/${key}.mp3`);
 };
 
 // 检查旁白音频是否存在（用于前端）
