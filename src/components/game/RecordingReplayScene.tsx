@@ -9,13 +9,18 @@ import {
   Gauge,
   PauseCircle,
   PlayCircle,
+  ShareNetwork,
   SkipBack,
   SkipForward,
 } from "@phosphor-icons/react";
+import { toast } from "sonner";
 import { DialogArea } from "@/components/game/DialogArea";
 import { GameBackground } from "@/components/game/GameBackground";
 import { PlayerCardCompact } from "@/components/game/PlayerCardCompact";
 import { buildReplayFrames, type ReplayFrame, type ReplayRecordingDetail } from "@/lib/game-recording-replay";
+import { buildRecordingAnalysisSharePath } from "@/lib/game-recording-share";
+import { getAuthHeaders } from "@/lib/auth-headers";
+import { copyToClipboard } from "@/lib/share-utils";
 import type { Phase, Player } from "@/types/game";
 
 type RecordingReplaySceneProps = {
@@ -28,6 +33,8 @@ type RecordingReplaySceneProps = {
       analysisStatus?: "pending" | "ready" | "failed";
     };
   };
+  isSharedView?: boolean;
+  shareToken?: string | null;
 };
 
 const SPEED_OPTIONS = [0.75, 1, 1.25, 1.5, 2] as const;
@@ -111,12 +118,14 @@ function getPlayerGroups(players: Player[]) {
   };
 }
 
-export function RecordingReplayScene({ detail }: RecordingReplaySceneProps) {
+export function RecordingReplayScene({ detail, isSharedView = false, shareToken = null }: RecordingReplaySceneProps) {
   const t = useTranslations();
   const frames = useMemo(() => buildReplayFrames(detail), [detail]);
   const [frameIndex, setFrameIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState<(typeof SPEED_OPTIONS)[number]>(1);
+  const [isSharing, setIsSharing] = useState(false);
+  const [generatedShareUrl, setGeneratedShareUrl] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const frame = frames[Math.min(frameIndex, frames.length - 1)] ?? frames[0];
@@ -127,6 +136,11 @@ export function RecordingReplayScene({ detail }: RecordingReplaySceneProps) {
   const aliveCount = players.filter((player) => player.alive).length;
   const phaseLabel = getPhaseLabel(t, gameState.phase);
   const progressLabel = `${frameIndex + 1}/${frames.length}`;
+  const backHref = isSharedView ? "/" : "/recordings";
+  const analysisHref =
+    isSharedView && shareToken
+      ? buildRecordingAnalysisSharePath(detail.recording.id, shareToken)
+      : detail.recording.analysisUrl;
   const canGoPrev = frameIndex > 0;
   const canGoNext = frameIndex < frames.length - 1;
   const replayDialogue = useMemo(
@@ -157,6 +171,40 @@ export function RecordingReplayScene({ detail }: RecordingReplaySceneProps) {
       return current + 1;
     });
   }, [frames.length]);
+
+  const handleShare = useCallback(async () => {
+    if (isSharing) return;
+
+    setIsSharing(true);
+    try {
+      let shareUrl = generatedShareUrl;
+      if (!shareUrl && isSharedView) {
+        shareUrl = window.location.href;
+      }
+
+      if (!shareUrl) {
+        const headers = await getAuthHeaders();
+        const response = await fetch(`/api/game-recordings/${encodeURIComponent(detail.recording.id)}/share`, {
+          method: "POST",
+          headers,
+        });
+        const json = (await response.json().catch(() => ({}))) as { shareUrl?: string; error?: string };
+        if (!response.ok || !json.shareUrl) {
+          throw new Error(json.error || t("recordings.share.failed"));
+        }
+        shareUrl = json.shareUrl;
+        setGeneratedShareUrl(shareUrl);
+      }
+
+      const copied = await copyToClipboard(shareUrl);
+      if (!copied) throw new Error(t("recordings.share.copyFailed"));
+      toast.success(t("recordings.share.copied"));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t("recordings.share.failed"));
+    } finally {
+      setIsSharing(false);
+    }
+  }, [detail.recording.id, generatedShareUrl, isSharedView, isSharing, t]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -241,7 +289,7 @@ export function RecordingReplayScene({ detail }: RecordingReplaySceneProps) {
         <header className="flex shrink-0 flex-col gap-3 rounded-lg border border-[var(--border-color)] bg-[var(--bg-card)]/80 px-3 py-3 shadow-lg backdrop-blur-md lg:flex-row lg:items-center lg:justify-between">
           <div className="flex min-w-0 flex-wrap items-center gap-3">
             <Link
-              href="/recordings"
+              href={backHref}
               className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-[var(--border-color)] text-[var(--text-muted)] hover:text-[var(--text-primary)]"
               title={t("recordings.detail.back")}
             >
@@ -266,9 +314,19 @@ export function RecordingReplayScene({ detail }: RecordingReplaySceneProps) {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {detail.recording.analysisUrl && detail.recording.analysisStatus === "ready" && (
+            <button
+              type="button"
+              onClick={() => void handleShare()}
+              disabled={isSharing}
+              className="inline-flex h-9 items-center gap-1 rounded-md border border-[var(--color-gold)]/50 bg-[var(--color-gold)]/10 px-3 text-sm font-medium text-[var(--color-gold)] hover:bg-[var(--color-gold)]/20 disabled:cursor-not-allowed disabled:opacity-60"
+              title={t("recordings.share.description")}
+            >
+              <ShareNetwork size={16} />
+              {isSharing ? t("recordings.share.creating") : t("recordings.share.button")}
+            </button>
+            {analysisHref && detail.recording.analysisStatus === "ready" && (
               <Link
-                href={detail.recording.analysisUrl}
+                href={analysisHref}
                 className="inline-flex h-9 items-center gap-1 rounded-md border border-[var(--border-color)] px-3 text-sm text-[var(--text-primary)] hover:border-[var(--color-gold)]/60"
               >
                 {t("recordings.fields.analysisReport")}

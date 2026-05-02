@@ -346,6 +346,8 @@ export interface Database {
           analysis_status: "pending" | "ready" | "failed";
           analysis_error: string | null;
           analysis_created_at: string | null;
+          share_token: string | null;
+          share_created_at: string | null;
           started_at: string;
           ended_at: string | null;
           created_at: string;
@@ -369,6 +371,8 @@ export interface Database {
           analysis_status?: "pending" | "ready" | "failed";
           analysis_error?: string | null;
           analysis_created_at?: string | null;
+          share_token?: string | null;
+          share_created_at?: string | null;
           started_at?: string;
           ended_at?: string | null;
           created_at?: string;
@@ -392,6 +396,8 @@ export interface Database {
           analysis_status?: "pending" | "ready" | "failed";
           analysis_error?: string | null;
           analysis_created_at?: string | null;
+          share_token?: string | null;
+          share_created_at?: string | null;
           started_at?: string;
           ended_at?: string | null;
           created_at?: string;

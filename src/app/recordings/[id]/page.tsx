@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { ArrowLeft } from "@phosphor-icons/react";
 import { RecordingReplayScene } from "@/components/game/RecordingReplayScene";
@@ -64,7 +64,9 @@ type RecordingDetail = {
 export default function RecordingDetailPage() {
   const t = useTranslations();
   const params = useParams<{ id: string }>();
+  const searchParams = useSearchParams();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
+  const shareToken = searchParams.get("share")?.trim() || "";
   const [detail, setDetail] = useState<RecordingDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -72,13 +74,16 @@ export default function RecordingDetailPage() {
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
+    const query = shareToken ? `?share=${encodeURIComponent(shareToken)}` : "";
 
-    getAuthHeaders()
-      .then((headers) =>
-        fetch(`/api/game-recordings/${encodeURIComponent(id)}`, {
-          headers,
-        })
-      )
+    const loadRecording = async () => {
+      const headers = shareToken ? undefined : await getAuthHeaders();
+      return fetch(`/api/game-recordings/${encodeURIComponent(id)}${query}`, {
+        headers,
+      });
+    };
+
+    loadRecording()
       .then(async (response) => {
         const json = await response.json().catch(() => ({}));
         if (!response.ok) {
@@ -96,10 +101,10 @@ export default function RecordingDetailPage() {
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [id, shareToken]);
 
   if (!isLoading && detail) {
-    return <RecordingReplayScene detail={detail} />;
+    return <RecordingReplayScene detail={detail} isSharedView={Boolean(shareToken)} shareToken={shareToken} />;
   }
 
   return (

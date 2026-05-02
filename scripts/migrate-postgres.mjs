@@ -19,6 +19,10 @@ const migrations = [
     id: "20260503_game_recording_analysis",
     file: path.join(__dirname, "sql", "20260503_game_recording_analysis.sql"),
   },
+  {
+    id: "20260503_game_recording_shares",
+    file: path.join(__dirname, "sql", "20260503_game_recording_shares.sql"),
+  },
 ];
 
 const databaseUrl = process.env.DATABASE_URL;

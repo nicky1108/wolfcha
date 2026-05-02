@@ -660,6 +660,14 @@
       "waiting": "Waiting for recorded events",
       "audioReady": "Original audio"
     },
+    "share": {
+      "button": "Share",
+      "creating": "Creating",
+      "description": "Create a share link that lets viewers watch this replay without signing in",
+      "copied": "Replay share link copied",
+      "failed": "Failed to create share link",
+      "copyFailed": "Failed to copy share link"
+    },
     "list": {
       "title": "Replay History",
       "description": "Review recorded formal games, including speech text and saved audio.",

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { authenticateRequest } from "@/lib/api-auth";
 import { dbQuery } from "@/lib/db";
+import { buildRecordingAnalysisSharePath } from "@/lib/game-recording-share";
 import type { RecordingEventType, RecordingStatus } from "@/lib/game-recording-types";
 
 export const dynamic = "force-dynamic";
@@ -26,6 +27,8 @@ type RecordingRow = {
   analysis_status: "pending" | "ready" | "failed";
   analysis_error: string | null;
   analysis_created_at: string | null;
+  share_token: string | null;
+  share_created_at: string | null;
   started_at: string;
   ended_at: string | null;
   created_at: string;
@@ -72,7 +75,7 @@ function isGuestUserId(userId: string): boolean {
   return userId.startsWith("guest_");
 }
 
-function toRecording(row: RecordingRow) {
+function toRecording(row: RecordingRow, shareToken: string | null) {
   return {
     id: row.id,
     gameSessionId: row.game_session_id,
@@ -86,7 +89,10 @@ function toRecording(row: RecordingRow) {
     finalState: row.final_state ?? null,
     winner: row.winner,
     analysisData: row.analysis_data ?? null,
-    analysisUrl: row.analysis_url,
+    analysisUrl:
+      shareToken && row.analysis_url && row.analysis_status === "ready"
+        ? buildRecordingAnalysisSharePath(row.id, shareToken)
+        : row.analysis_url,
     analysisStatus: row.analysis_status,
     analysisError: row.analysis_error,
     analysisCreatedAt: row.analysis_created_at,
@@ -94,6 +100,7 @@ function toRecording(row: RecordingRow) {
     endedAt: row.ended_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    shareCreatedAt: row.share_created_at,
   };
 }
 
@@ -138,17 +145,17 @@ function toAsset(row: RecordingAssetRow) {
 }
 
 export async function GET(request: Request, context: RouteContext) {
-  const auth = await authenticateRequest(request);
-  if ("error" in auth) return auth.error;
-  if (isGuestUserId(auth.user.id)) {
-    return NextResponse.json({ error: "Recording not found" }, { status: 404 });
-  }
-
   const { id } = await context.params;
   if (!id) return NextResponse.json({ error: "Recording not found" }, { status: 404 });
 
-  const recordingResult = await dbQuery<RecordingRow>(
-    `
+  const { searchParams } = new URL(request.url);
+  const shareToken = searchParams.get("share")?.trim() || "";
+  let query: string;
+  let params: unknown[];
+  let effectiveShareToken: string | null = null;
+
+  if (shareToken) {
+    query = `
       select
         id,
         game_session_id,
@@ -166,6 +173,44 @@ export async function GET(request: Request, context: RouteContext) {
         analysis_status,
         analysis_error,
         analysis_created_at,
+        share_token,
+        share_created_at,
+        started_at,
+        ended_at,
+        created_at,
+        updated_at
+      from game_recordings
+      where id = $1 and share_token = $2
+      limit 1
+    `;
+    params = [id, shareToken];
+    effectiveShareToken = shareToken;
+  } else {
+    const auth = await authenticateRequest(request);
+    if ("error" in auth) return auth.error;
+    if (isGuestUserId(auth.user.id)) {
+      return NextResponse.json({ error: "Recording not found" }, { status: 404 });
+    }
+    query = `
+      select
+        id,
+        game_session_id,
+        status,
+        player_count,
+        difficulty,
+        used_custom_key,
+        mode_flags,
+        player_snapshot,
+        initial_state,
+        final_state,
+        winner,
+        analysis_data,
+        analysis_url,
+        analysis_status,
+        analysis_error,
+        analysis_created_at,
+        share_token,
+        share_created_at,
         started_at,
         ended_at,
         created_at,
@@ -173,8 +218,13 @@ export async function GET(request: Request, context: RouteContext) {
       from game_recordings
       where id = $1 and user_id = $2
       limit 1
-    `,
-    [id, auth.user.id]
+    `;
+    params = [id, auth.user.id];
+  }
+
+  const recordingResult = await dbQuery<RecordingRow>(
+    query,
+    params
   );
 
   const recording = recordingResult.rows[0];
@@ -234,8 +284,9 @@ export async function GET(request: Request, context: RouteContext) {
   ]);
 
   return NextResponse.json({
-    recording: toRecording(recording),
+    recording: toRecording(recording, effectiveShareToken),
     events: eventsResult.rows.map(toEvent),
     assets: assetsResult.rows.map(toAsset),
+    access: effectiveShareToken ? "shared" : "owner",
   });
 }

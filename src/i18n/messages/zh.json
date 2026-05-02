@@ -674,6 +674,14 @@
       "waiting": "等待对局事件",
       "audioReady": "原局语音"
     },
+    "share": {
+      "button": "分享",
+      "creating": "生成中",
+      "description": "生成无需登录即可观看本局回放的分享链接",
+      "copied": "回放分享链接已复制",
+      "failed": "生成分享链接失败",
+      "copyFailed": "复制分享链接失败"
+    },
     "list": {
       "title": "历史精彩对局",
       "description": "查看所有已录制的正式对局，进入后可回放文字与语音。",

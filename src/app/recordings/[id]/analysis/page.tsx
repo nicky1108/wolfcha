@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { PostGameAnalysisPage } from "@/components/analysis";
 import { getAuthHeaders } from "@/lib/auth-headers";
 import type { GameAnalysisData } from "@/types/analysis";
@@ -18,7 +18,9 @@ type RecordingAnalysisResponse = {
 export default function RecordingAnalysisPage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
+  const searchParams = useSearchParams();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
+  const shareToken = searchParams.get("share")?.trim() || "";
   const [analysisData, setAnalysisData] = useState<GameAnalysisData | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "empty" | "error">("loading");
   const [error, setError] = useState<string | null>(null);
@@ -26,13 +28,16 @@ export default function RecordingAnalysisPage() {
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
+    const query = shareToken ? `?share=${encodeURIComponent(shareToken)}` : "";
 
-    getAuthHeaders()
-      .then((headers) =>
-        fetch(`/api/game-recordings/${encodeURIComponent(id)}`, {
-          headers,
-        })
-      )
+    const loadRecording = async () => {
+      const headers = shareToken ? undefined : await getAuthHeaders();
+      return fetch(`/api/game-recordings/${encodeURIComponent(id)}${query}`, {
+        headers,
+      });
+    };
+
+    loadRecording()
       .then(async (response) => {
         const json = (await response.json().catch(() => ({}))) as RecordingAnalysisResponse & { error?: string };
         if (!response.ok) {
@@ -59,10 +64,10 @@ export default function RecordingAnalysisPage() {
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [id, shareToken]);
 
   const handleReturn = () => {
-    router.push(`/recordings/${id}`);
+    router.push(`/recordings/${id}${shareToken ? `?share=${encodeURIComponent(shareToken)}` : ""}`);
   };
 
   if (status === "loading") {
