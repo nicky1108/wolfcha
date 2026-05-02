@@ -31,6 +31,7 @@ export interface StartGameOptions {
   isGenshinMode?: boolean;
   isSpectatorMode?: boolean;
   enableAiVoice?: boolean;
+  enableAutoAdvanceDialogue?: boolean;
   customCharacters?: CustomCharacterData[];
   preferredRole?: Role;
 }

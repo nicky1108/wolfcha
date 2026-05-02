@@ -29,7 +29,7 @@ import {
 } from "@/components/icons/FlatIcons";
 import { useTypewriter } from "@/hooks/useTypewriter";
 import { useGameLogic } from "@/hooks/useGameLogic";
-import type { Player, Role } from "@/types/game";
+import type { Player, Role, StartGameOptions } from "@/types/game";
 import { isWolfRole } from "@/types/game";
 import { PHASE_CONFIGS, isGameInProgress } from "@/store/game-machine";
 import { getI18n } from "@/i18n/translator";
@@ -213,6 +213,36 @@ export default function Home() {
   const [isVoiceCreditCharging, setIsVoiceCreditCharging] = useState(false);
   const voiceChargedGameIdRef = useRef<string | null>(null);
   const pendingVoiceIncludedRef = useRef(false);
+  const handleStartGame = useCallback(
+    (options?: StartGameOptions) => {
+      if (options?.enableAiVoice) {
+        pendingVoiceIncludedRef.current = true;
+        setSoundEnabled(true);
+        setAiVoiceEnabled(true);
+      } else {
+        pendingVoiceIncludedRef.current = false;
+        setAiVoiceEnabled(false);
+      }
+
+      if (options?.enableAutoAdvanceDialogue) {
+        setAutoAdvanceDialogueEnabled(true);
+      }
+
+      void startGame({
+        ...(options ?? {}),
+        isGenshinMode: options?.isGenshinMode ?? isGenshinMode,
+        isSpectatorMode: options?.isSpectatorMode ?? isSpectatorMode,
+      });
+    },
+    [
+      isGenshinMode,
+      isSpectatorMode,
+      setAiVoiceEnabled,
+      setAutoAdvanceDialogueEnabled,
+      setSoundEnabled,
+      startGame,
+    ]
+  );
   const {
     state: tutorialState,
     isLoaded: isTutorialLoaded,
@@ -1481,21 +1511,7 @@ export default function Home() {
             <WelcomeScreen
               humanName={humanName}
               setHumanName={setHumanName}
-              onStart={(options) => {
-                if (options?.enableAiVoice) {
-                  pendingVoiceIncludedRef.current = true;
-                  setSoundEnabled(true);
-                  setAiVoiceEnabled(true);
-                } else {
-                  pendingVoiceIncludedRef.current = false;
-                  setAiVoiceEnabled(false);
-                }
-                startGame({
-                  ...(options ?? {}),
-                  isGenshinMode: options?.isGenshinMode ?? isGenshinMode,
-                  isSpectatorMode: options?.isSpectatorMode ?? isSpectatorMode,
-                });
-              }}
+              onStart={handleStartGame}
               onAbort={restartGame}
               isLoading={isLoading}
               isGenshinMode={isGenshinMode}

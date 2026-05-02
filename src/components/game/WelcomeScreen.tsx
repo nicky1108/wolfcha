@@ -38,6 +38,7 @@ import {
   SPRING_CAMPAIGN_ENABLED,
 } from "@/lib/welfare-config";
 import { GODS_BATTLE_CREDIT_COST } from "@/lib/game-credit-cost";
+import { buildGodsBattleStartOptions } from "@/lib/gods-battle-options";
 
 type SponsorCardProps = {
   sponsorId: string;
@@ -702,14 +703,7 @@ export function WelcomeScreen({
     setIsTransitioning(true);
 
     window.setTimeout(() => {
-      void onStart({
-        difficulty: "normal",
-        playerCount: 8,
-        isGenshinMode: true,
-        isSpectatorMode: true,
-        enableAiVoice: true,
-        fixedModelRefs: GODS_BATTLE_MODELS,
-      });
+      void onStart(buildGodsBattleStartOptions());
       isStartingRef.current = false;
       setIsGodsBattleStarting(false);
     }, 800);
