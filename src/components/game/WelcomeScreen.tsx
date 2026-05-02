@@ -1,15 +1,16 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { FingerprintSimple, PawPrint, Sparkle, Wrench, GearSix, UserCircle, DotsThreeOutlineVertical, UsersFour } from "@phosphor-icons/react";
+import { FingerprintSimple, PawPrint, Sparkle, Wrench, GearSix, UserCircle, DotsThreeOutlineVertical, UsersFour, FilmSlate } from "@phosphor-icons/react";
 import { WerewolfIcon } from "@/components/icons/FlatIcons";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useAtom } from "jotai";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
-import type { DevPreset, DifficultyLevel, Role, StartGameOptions } from "@/types/game";
+import { GODS_BATTLE_MODELS, type DevPreset, type DifficultyLevel, type Role, type StartGameOptions } from "@/types/game";
 import { DevModeButton } from "@/components/DevTools/DevModeButton";
 import { GameSetupModal } from "@/components/game/GameSetupModal";
 import { AuthModal } from "@/components/game/AuthModal";
@@ -36,6 +37,7 @@ import {
   REFERRAL_BONUS_ENABLED,
   SPRING_CAMPAIGN_ENABLED,
 } from "@/lib/welfare-config";
+import { GODS_BATTLE_CREDIT_COST } from "@/lib/game-credit-cost";
 
 type SponsorCardProps = {
   sponsorId: string;
@@ -273,6 +275,8 @@ export function WelcomeScreen({
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isCustomCharacterOpen, setIsCustomCharacterOpen] = useState(false);
   const [isLowCreditOpen, setIsLowCreditOpen] = useState(false);
+  const [isGodsBattleConfirmOpen, setIsGodsBattleConfirmOpen] = useState(false);
+  const [isGodsBattleStarting, setIsGodsBattleStarting] = useState(false);
   const [userProfileDefaultTab, setUserProfileDefaultTab] = useState<string | undefined>(undefined);
   const selectionStorageKey = useMemo(() => {
     return user?.id
@@ -454,6 +458,7 @@ export function WelcomeScreen({
   const canConfirm = useMemo(() => {
     return !!humanName.trim() && !isLoading && !isTransitioning && !creditsLoading;
   }, [humanName, isLoading, isTransitioning, creditsLoading]);
+  const canStartGodsBattle = !isLoading && !isTransitioning && !creditsLoading && !isGodsBattleStarting;
 
   const isAnyModalOpen =
     isSetupOpen ||
@@ -465,6 +470,7 @@ export function WelcomeScreen({
     isMobileMenuOpen ||
     isCustomCharacterOpen ||
     isLowCreditOpen ||
+    isGodsBattleConfirmOpen ||
     isDevConsoleOpen;
 
   useEffect(() => {
@@ -641,6 +647,72 @@ export function WelcomeScreen({
       .finally(() => {
         isStartingRef.current = false;
       });
+  };
+
+  const handleGodsBattleConfirm = async () => {
+    if (!canStartGodsBattle || isStartingRef.current) return;
+
+    setIsGodsBattleStarting(true);
+    const latestDemoConfig = await refreshDemoConfig(true);
+    const demoModeActive = latestDemoConfig.active;
+
+    if (!user && !demoModeActive) {
+      setIsGodsBattleStarting(false);
+      setIsGodsBattleConfirmOpen(false);
+      setIsAuthOpen(true);
+      toast(t("welcome.toast.signInFirst"));
+      return;
+    }
+
+    const availableCredits = (credits ?? 0) + effectiveSpringRemainingQuota;
+    if (
+      !demoModeActive &&
+      credits !== null &&
+      !mayHaveUnclaimedSpringQuota &&
+      availableCredits < GODS_BATTLE_CREDIT_COST
+    ) {
+      setIsGodsBattleStarting(false);
+      setIsGodsBattleConfirmOpen(false);
+      setUserProfileDefaultTab("payAsYouGo");
+      setIsUserProfileOpen(true);
+      toast.error(t("welcome.godsBattle.toasts.creditFail.title"), {
+        description: t("welcome.godsBattle.toasts.creditFail.description"),
+      });
+      return;
+    }
+
+    isStartingRef.current = true;
+
+    if (!demoModeActive) {
+      const consumed = await consumeCredit(GODS_BATTLE_CREDIT_COST);
+      if (!consumed) {
+        isStartingRef.current = false;
+        setIsGodsBattleStarting(false);
+        setIsGodsBattleConfirmOpen(false);
+        setUserProfileDefaultTab("payAsYouGo");
+        setIsUserProfileOpen(true);
+        toast.error(t("welcome.godsBattle.toasts.creditFail.title"), {
+          description: t("welcome.godsBattle.toasts.creditFail.description"),
+        });
+        return;
+      }
+    }
+
+    setIsGodsBattleConfirmOpen(false);
+    setIsTransitioning(true);
+
+    window.setTimeout(() => {
+      void onStart({
+        difficulty: "normal",
+        playerCount: 8,
+        isGenshinMode: true,
+        isSpectatorMode: true,
+        enableAiVoice: true,
+        fixedModelRefs: GODS_BATTLE_MODELS,
+      });
+      isStartingRef.current = false;
+      setIsGodsBattleStarting(false);
+    }, 800);
   };
 
   const handleOpenPayAsYouGo = () => {
@@ -825,6 +897,56 @@ export function WelcomeScreen({
           </Dialog>
         )}
 
+        <Dialog open={isGodsBattleConfirmOpen} onOpenChange={setIsGodsBattleConfirmOpen}>
+          <DialogContent className="max-w-[520px] overflow-hidden border-2 border-[var(--color-gold)]/50 bg-[var(--bg-card)] p-0">
+            <div className="relative">
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(197,160,89,0.24),transparent_58%)]" aria-hidden="true" />
+              <DialogHeader className="relative px-6 pt-6 text-left">
+                <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-[var(--color-gold)]/40 bg-[var(--color-gold)]/15 px-3 py-1 text-xs font-semibold text-[var(--color-gold)]">
+                  <Sparkle size={14} weight="fill" />
+                  {t("welcome.godsBattle.badge")}
+                </div>
+                <DialogTitle className="text-2xl text-[var(--text-primary)]">
+                  {t("welcome.godsBattle.confirmTitle")}
+                </DialogTitle>
+                <DialogDescription className="text-[var(--text-secondary)]">
+                  {t("welcome.godsBattle.confirmDescription")}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="relative space-y-3 px-6 py-5">
+                <div className="rounded-lg border border-[var(--border-color)] bg-black/5 px-4 py-3 text-sm text-[var(--text-secondary)]">
+                  {t("welcome.godsBattle.confirmDetails", { count: GODS_BATTLE_CREDIT_COST })}
+                </div>
+                <div className="grid gap-2 text-xs text-[var(--text-muted)] sm:grid-cols-2">
+                  {GODS_BATTLE_MODELS.map((modelRef) => (
+                    <div key={modelRef.model} className="truncate rounded-md border border-[var(--border-color)] bg-white/40 px-2 py-1.5">
+                      {modelRef.model}
+                    </div>
+                  ))}
+                </div>
+                <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setIsGodsBattleConfirmOpen(false)}
+                  >
+                    {t("common.cancel")}
+                  </Button>
+                  <Button
+                    type="button"
+                    className="bg-[var(--color-gold)] text-[#1a1614] hover:bg-[var(--color-gold-dark)]"
+                    disabled={!canStartGodsBattle}
+                    onClick={() => void handleGodsBattleConfirm()}
+                  >
+                    <Sparkle size={16} weight="fill" />
+                    {t("welcome.godsBattle.confirmAction")}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
         <Dialog open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
           <DialogContent className="max-w-[420px]">
             <DialogHeader>
@@ -832,6 +954,18 @@ export function WelcomeScreen({
               <DialogDescription>{t("welcome.mobileMenu.description")}</DialogDescription>
             </DialogHeader>
             <div className="grid gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="justify-start"
+                asChild
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                <Link href="/recordings">
+                  <FilmSlate size={16} />
+                  {t("welcome.recordings.button")}
+                </Link>
+              </Button>
               <Button
                 type="button"
                 variant="outline"
@@ -892,8 +1026,30 @@ export function WelcomeScreen({
         </div>
 
         <div className="wc-welcome-actions absolute top-5 right-5 z-20 flex items-center gap-2">
+          <button
+            type="button"
+            className="wc-gods-battle-button"
+            onClick={() => setIsGodsBattleConfirmOpen(true)}
+            disabled={!canStartGodsBattle}
+          >
+            <Sparkle size={16} weight="fill" />
+            <span>{t("welcome.godsBattle.button")}</span>
+          </button>
+
           <div className="hidden sm:flex items-center gap-2">
             <LocaleSwitcher className="shrink-0" />
+
+            <Button
+              type="button"
+              variant="outline"
+              className="h-8 text-xs gap-2"
+              asChild
+            >
+              <Link href="/recordings" title={t("welcome.recordings.tooltip")}>
+                <FilmSlate size={16} />
+                <span className="hidden lg:inline">{t("welcome.recordings.button")}</span>
+              </Link>
+            </Button>
 
             {user ? (
               <button

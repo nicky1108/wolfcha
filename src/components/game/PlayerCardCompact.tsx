@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Microphone, Sparkle } from "@phosphor-icons/react";
+import { Sparkle } from "@phosphor-icons/react";
 import type { Player, Role } from "@/types/game";
 import { isWolfRole } from "@/types/game";
 import { cn } from "@/lib/utils";
@@ -21,6 +21,7 @@ interface PlayerCardCompactProps {
   animationDelay?: number;
   showWolfBadge?: boolean;
   showRoleBadge?: boolean;
+  showRoleMeta?: boolean;
   showModel?: boolean;
   selectionTone?: "wolf" | "seer" | "guard" | "witch" | "hunter" | "badge" | "vote";
   seerCheckResult?: "wolf" | "good" | null;
@@ -36,13 +37,12 @@ export function PlayerCardCompact({
   isSpeaking,
   canClick,
   isSelected,
-  isNight = false,
   isGenshinMode = false,
   onClick,
   onDetailClick,
   animationDelay = 0,
-  showWolfBadge = false,
   showRoleBadge = true,
+  showRoleMeta = false,
   showModel = false,
   selectionTone,
   seerCheckResult = null,
@@ -69,7 +69,7 @@ export function PlayerCardCompact({
     
     // 当从 loading 变为 ready 时触发动画（首次渲染时 wasReady 为 null，不触发）
     if (isReady && wasReady === false) {
-      setRevealPop(true);
+      queueMicrotask(() => setRevealPop(true));
       const timer = window.setTimeout(() => setRevealPop(false), 600);
       return () => window.clearTimeout(timer);
     }
@@ -125,6 +125,7 @@ export function PlayerCardCompact({
   const persona = player.agentProfile?.persona;
   // Show basicInfo instead of styleLabel for richer context
   const basicInfoLabel = isGenshinMode ? (isMe ? t("common.you") : "") : persona?.basicInfo || (isMe ? t("common.you") : "");
+  const showPersonaMeta = !showRoleMeta && !!basicInfoLabel;
   const modelLabel = player.agentProfile?.modelRef?.model;
 
   const isModelAvatar = isGenshinMode && !player.isHuman;
@@ -139,7 +140,7 @@ export function PlayerCardCompact({
     isSpeaking && "border-[var(--color-gold)]"
   );
 
-  const handleClick = (e: React.MouseEvent) => {
+  const handleClick = () => {
     if (!isReady) return; // Prevent clicking when not ready
     if (canClick) {
       onClick();
@@ -182,6 +183,7 @@ export function PlayerCardCompact({
         isDead && "wc-player-card--dead grayscale-[0.8]",
         isSpeaking && "wc-player-card--speaking ring-1 ring-[var(--color-gold)] shadow-[0_0_15px_rgba(184,134,11,0.15)]",
         isMe && "wc-player-card--me",
+        showRoleMeta && "wc-player-card--identity-meta",
         isWolfTeammate && "border-[var(--color-blood)]/70 bg-[var(--color-wolf-bg)]",
         isDisabledInSelection && "wc-player-card--disabled opacity-50 grayscale-[0.3] pointer-events-none",
         canClick && isReady && "wc-player-card--selectable border-[var(--color-gold)]/50 hover:border-[var(--color-gold)] cursor-pointer",
@@ -377,7 +379,23 @@ export function PlayerCardCompact({
         )}
 
         <div className="wc-player-card__meta min-h-[1.25rem] space-y-0.5">
-          {isReady && basicInfoLabel && (
+          {isReady && showRoleMeta && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.18 }}
+              className="truncate"
+              title={`${t("playerCard.roleLabel")}: ${getRoleLabel(player.role)}`}
+            >
+              <span className={cn(
+                "text-[10px] font-semibold",
+                isSpeaking ? "text-[var(--color-gold)]" : "text-[var(--text-primary)]"
+              )}>
+                {t("playerCard.roleLabel")}: {getRoleLabel(player.role)}
+              </span>
+            </motion.div>
+          )}
+          {isReady && showPersonaMeta && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -397,9 +415,9 @@ export function PlayerCardCompact({
               animate={{ opacity: 1 }}
               transition={{ delay: 0.25 }}
               className="text-[10px] text-[var(--text-muted)] truncate"
-              title={modelLabel}
+              title={`${t("playerCard.modelLabel")}: ${modelLabel}`}
             >
-              {modelLabel}
+              {t("playerCard.modelLabel")}: {modelLabel}
             </motion.div>
           )}
           {!isReady && (

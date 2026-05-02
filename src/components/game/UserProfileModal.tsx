@@ -45,6 +45,7 @@ import {
 } from "@/lib/api-keys";
 import { getModelLogoPath } from "@/lib/model-logo";
 import { supabase } from "@/lib/supabase";
+import { getAuthHeaders } from "@/lib/auth-headers";
 import { REFERRAL_BONUS_ENABLED, SPRING_CAMPAIGN_ENABLED, REDEMPTION_CODE_ENABLED } from "@/lib/welfare-config";
 import {
   ALL_MODELS,
@@ -61,6 +62,17 @@ import type { SpringCampaignSnapshot } from "@/lib/spring-campaign";
 const GAME_CREDIT_PRICE_CNY = 1;
 const GAME_CREDIT_PRICE_LABEL = GAME_CREDIT_PRICE_CNY.toFixed(2);
 const OPENHUBS_URL = "https://openhubs.xyz";
+
+type RecordingListItem = {
+  id: string;
+  status: string;
+  playerCount: number;
+  winner: "wolf" | "villager" | null;
+  startedAt: string;
+  endedAt: string | null;
+  eventCount: number;
+  audioCount: number;
+};
  
  interface UserProfileModalProps {
    open: boolean;
@@ -126,6 +138,9 @@ const OPENHUBS_URL = "https://openhubs.xyz";
   const [isPurchasing, setIsPurchasing] = useState(false);
   const [redeemCodeInput, setRedeemCodeInput] = useState("");
   const [isRedeeming, setIsRedeeming] = useState(false);
+  const [recordings, setRecordings] = useState<RecordingListItem[]>([]);
+  const [isRecordingsLoading, setIsRecordingsLoading] = useState(false);
+  const [recordingsError, setRecordingsError] = useState<string | null>(null);
   const profileActionGridClassName = REFERRAL_BONUS_ENABLED
     ? "grid grid-cols-2 gap-2"
     : "grid grid-cols-1 gap-2";
@@ -136,6 +151,20 @@ const OPENHUBS_URL = "https://openhubs.xyz";
     if (credits === null || credits === undefined) return t("userProfile.empty");
      return `${credits}`;
    }, [credits]);
+
+  const formatRecordingTime = (value: string | null) => {
+    if (!value) return t("userProfile.empty");
+    try {
+      return new Intl.DateTimeFormat(undefined, {
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+      }).format(new Date(value));
+    } catch {
+      return value;
+    }
+  };
  
   useEffect(() => {
     if (!open) return;
@@ -168,6 +197,40 @@ const OPENHUBS_URL = "https://openhubs.xyz";
     }
     return () => {
       mounted = false;
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    setIsRecordingsLoading(true);
+    setRecordingsError(null);
+
+    getAuthHeaders()
+      .then((headers) =>
+        fetch("/api/game-recordings?page=1&pageSize=10", {
+          headers,
+        })
+      )
+      .then(async (response) => {
+        const json = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(typeof json.error === "string" ? json.error : "Failed to load recordings");
+        }
+        if (!cancelled) {
+          const list = Array.isArray(json.recordings) ? json.recordings : [];
+          setRecordings(list as RecordingListItem[]);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) setRecordingsError(err instanceof Error ? err.message : String(err));
+      })
+      .finally(() => {
+        if (!cancelled) setIsRecordingsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
     };
   }, [open]);
 
@@ -488,6 +551,7 @@ const OPENHUBS_URL = "https://openhubs.xyz";
           <TabsList>
             <TabsTrigger value="profile">{t("customKey.tabs.profile")}</TabsTrigger>
             <TabsTrigger value="payAsYouGo">{t("customKey.tabs.payAsYouGo")}</TabsTrigger>
+            <TabsTrigger value="recordings">{t("customKey.tabs.recordings")}</TabsTrigger>
             <TabsTrigger value="custom">{t("customKey.tabs.custom")}</TabsTrigger>
           </TabsList>
 
@@ -565,6 +629,51 @@ const OPENHUBS_URL = "https://openhubs.xyz";
                   </Button>
                 </div>
               </TabsContent>
+
+          <TabsContent value="recordings">
+            <div className="space-y-3">
+              {isRecordingsLoading && (
+                <div className="rounded-lg border border-[var(--border-color)] bg-[var(--bg-card)] p-4 text-sm text-[var(--text-muted)]">
+                  {t("recordings.loading")}
+                </div>
+              )}
+
+              {!isRecordingsLoading && recordingsError && (
+                <div className="rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-700">
+                  {recordingsError}
+                </div>
+              )}
+
+              {!isRecordingsLoading && !recordingsError && recordings.length === 0 && (
+                <div className="rounded-lg border border-[var(--border-color)] bg-[var(--bg-card)] p-4 text-sm text-[var(--text-muted)]">
+                  {t("recordings.empty")}
+                </div>
+              )}
+
+              {!isRecordingsLoading && !recordingsError && recordings.map((recording) => (
+                <a
+                  key={recording.id}
+                  href={`/recordings/${recording.id}`}
+                  className="block rounded-lg border border-[var(--border-color)] bg-[var(--bg-card)] p-3 transition-colors hover:border-[var(--accent-color)]"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium text-[var(--text-primary)]">
+                        {formatRecordingTime(recording.startedAt)}
+                      </div>
+                      <div className="mt-1 flex flex-wrap gap-2 text-xs text-[var(--text-muted)]">
+                        <span>{t("recordings.fields.playerCount")}: {recording.playerCount}</span>
+                        <span>{t("recordings.fields.winner")}: {recording.winner ? t(`recordings.winners.${recording.winner}`) : t("userProfile.empty")}</span>
+                        <span>{t("recordings.fields.events")}: {recording.eventCount}</span>
+                        <span>{t("recordings.fields.audio")}: {recording.audioCount}</span>
+                      </div>
+                    </div>
+                    <ArrowRight size={16} className="mt-1 shrink-0 text-[var(--text-muted)]" />
+                  </div>
+                </a>
+              ))}
+            </div>
+          </TabsContent>
 
           <TabsContent value="payAsYouGo">
             <div className="space-y-4">

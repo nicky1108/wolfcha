@@ -58,6 +58,7 @@ import { supabase } from "@/lib/supabase";
 import { consumeGameCredit } from "@/lib/credits-client";
 import { STANDARD_GAME_CREDIT_COST } from "@/lib/game-credit-cost";
 import { getStaticAudioAssetUrl } from "@/lib/static-audio-assets";
+import { gameRecordingTracker } from "@/lib/game-recording-tracker";
 
 const RITUAL_CUE_DURATION_SECONDS = 2.2;
 const DAY_NIGHT_BLINK = {
@@ -211,6 +212,7 @@ export default function Home() {
   const gameInProgress = useMemo(() => isGameInProgress(gameState), [gameState]);
   const [isVoiceCreditCharging, setIsVoiceCreditCharging] = useState(false);
   const voiceChargedGameIdRef = useRef<string | null>(null);
+  const pendingVoiceIncludedRef = useRef(false);
   const {
     state: tutorialState,
     isLoaded: isTutorialLoaded,
@@ -264,9 +266,24 @@ export default function Home() {
   }, [gameState.phase, setAiVoiceEnabled]);
 
   useEffect(() => {
+    gameRecordingTracker.syncState(gameState);
+    if (gameState.phase === "GAME_END" && gameState.winner) {
+      gameRecordingTracker.complete(gameState);
+    }
+  }, [gameState]);
+
+  useEffect(() => {
     if (gameStarted && gameState.gameId) return;
     voiceChargedGameIdRef.current = null;
+    pendingVoiceIncludedRef.current = false;
     setIsVoiceCreditCharging(false);
+  }, [gameStarted, gameState.gameId]);
+
+  useEffect(() => {
+    if (!pendingVoiceIncludedRef.current) return;
+    if (!gameStarted || !gameState.gameId) return;
+    voiceChargedGameIdRef.current = gameState.gameId;
+    pendingVoiceIncludedRef.current = false;
   }, [gameStarted, gameState.gameId]);
 
   const handleAiVoiceToggle = useCallback(async (nextEnabled: boolean) => {
@@ -659,6 +676,7 @@ export default function Home() {
   const ritualCueQueueRef = useRef<Array<{ id: string; title: string; subtitle?: string }>>([]);
   const lastAdvanceTimeRef = useRef(0);
   const canShowRole = hasShownRoleReveal || (gameState.day >= 1 && gameState.phase !== "LOBBY");
+  const showSpectatorIdentityMeta = !!gameState.isSpectatorMode;
   const selectionTone = useMemo(() => {
     if (!humanPlayer) return undefined;
     switch (gameState.phase) {
@@ -1464,8 +1482,19 @@ export default function Home() {
               humanName={humanName}
               setHumanName={setHumanName}
               onStart={(options) => {
-                setAiVoiceEnabled(false);
-                startGame({ ...(options ?? {}), isGenshinMode, isSpectatorMode });
+                if (options?.enableAiVoice) {
+                  pendingVoiceIncludedRef.current = true;
+                  setSoundEnabled(true);
+                  setAiVoiceEnabled(true);
+                } else {
+                  pendingVoiceIncludedRef.current = false;
+                  setAiVoiceEnabled(false);
+                }
+                startGame({
+                  ...(options ?? {}),
+                  isGenshinMode: options?.isGenshinMode ?? isGenshinMode,
+                  isSpectatorMode: options?.isSpectatorMode ?? isSpectatorMode,
+                });
               }}
               onAbort={restartGame}
               isLoading={isLoading}
@@ -1716,7 +1745,8 @@ export default function Home() {
                             isBadgeHolder={gameState.badge.holderSeat === player.seat}
                             isBadgeCandidate={isBadgeCandidate}
                             showRoleBadge={canShowRole}
-                            showModel={gameState.phase === "GAME_END"}
+                            showRoleMeta={showSpectatorIdentityMeta}
+                            showModel={showSpectatorIdentityMeta || gameState.phase === "GAME_END"}
                             selectionTone={selectionTone}
                             isInSelectionPhase={isSelectionPhase}
                           />
@@ -1793,6 +1823,8 @@ export default function Home() {
                               isBadgeCandidate={isBadgeCandidate}
                               variant="mobile"
                               showRoleBadge={canShowRole}
+                              showRoleMeta={showSpectatorIdentityMeta}
+                              showModel={showSpectatorIdentityMeta || gameState.phase === "GAME_END"}
                               selectionTone={selectionTone}
                               isInSelectionPhase={isSelectionPhase}
                             />
@@ -1831,7 +1863,8 @@ export default function Home() {
                             isBadgeHolder={gameState.badge.holderSeat === player.seat}
                             isBadgeCandidate={isBadgeCandidate}
                             showRoleBadge={canShowRole}
-                            showModel={gameState.phase === "GAME_END"}
+                            showRoleMeta={showSpectatorIdentityMeta}
+                            showModel={showSpectatorIdentityMeta || gameState.phase === "GAME_END"}
                             selectionTone={selectionTone}
                             isInSelectionPhase={isSelectionPhase}
                           />

@@ -11,6 +11,14 @@ const migrations = [
     id: "20260430_self_hosted_schema",
     file: path.join(__dirname, "sql", "20260430_self_hosted_schema.sql"),
   },
+  {
+    id: "20260502_game_recordings",
+    file: path.join(__dirname, "sql", "20260502_game_recordings.sql"),
+  },
+  {
+    id: "20260503_game_recording_analysis",
+    file: path.join(__dirname, "sql", "20260503_game_recording_analysis.sql"),
+  },
 ];
 
 const databaseUrl = process.env.DATABASE_URL;

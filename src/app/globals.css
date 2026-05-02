@@ -609,6 +609,76 @@ input[type="submit"]:not(:disabled),
   }
 }
 
+.wc-gods-battle-button {
+  position: relative;
+  display: inline-flex;
+  height: 36px;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 236, 166, 0.75);
+  background:
+    linear-gradient(135deg, rgba(35, 16, 18, 0.96), rgba(112, 22, 31, 0.94) 46%, rgba(204, 164, 73, 0.96));
+  color: #fff7d6;
+  padding: 0 14px;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0;
+  white-space: nowrap;
+  box-shadow:
+    0 0 0 1px rgba(197, 160, 89, 0.22),
+    0 8px 24px rgba(88, 18, 22, 0.36),
+    0 0 18px rgba(197, 160, 89, 0.32);
+  overflow: hidden;
+  transition: transform 0.18s ease, filter 0.18s ease;
+  animation: wc-gods-battle-pulse 1.35s ease-in-out infinite;
+}
+
+.wc-gods-battle-button::after {
+  content: "";
+  position: absolute;
+  inset: -40% auto -40% -70%;
+  width: 45%;
+  transform: skewX(-24deg);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.5), transparent);
+  animation: wc-gods-battle-shine 2.3s ease-in-out infinite;
+}
+
+.wc-gods-battle-button:hover:not(:disabled) {
+  transform: translateY(-1px) scale(1.03);
+  filter: brightness(1.08);
+}
+
+.wc-gods-battle-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+  animation: none;
+}
+
+@keyframes wc-gods-battle-pulse {
+  0%, 100% {
+    box-shadow:
+      0 0 0 1px rgba(197, 160, 89, 0.22),
+      0 8px 24px rgba(88, 18, 22, 0.36),
+      0 0 14px rgba(197, 160, 89, 0.28);
+  }
+  50% {
+    box-shadow:
+      0 0 0 2px rgba(255, 236, 166, 0.48),
+      0 10px 30px rgba(120, 22, 32, 0.45),
+      0 0 30px rgba(255, 214, 92, 0.58);
+  }
+}
+
+@keyframes wc-gods-battle-shine {
+  0% {
+    left: -70%;
+  }
+  42%, 100% {
+    left: 135%;
+  }
+}
+
 .wc-contract-borders {
   position: absolute;
   inset: 10px;
@@ -1698,6 +1768,16 @@ input[type="submit"]:not(:disabled),
   gap: 6px;
 }
 
+.wc-player-card--identity-meta .wc-player-card__meta {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.wc-player-card--identity-meta .wc-player-card__meta > div {
+  max-width: 100%;
+}
+
 /* ========== 玩家详情弹窗暗夜适配 ========== */
 .wc-player-detail-modal {
   background: rgba(255, 255, 255, 0.88);
@@ -2260,6 +2340,21 @@ input[type="submit"]:not(:disabled),
   min-height: auto;
 }
 
+.wc-player-card--mobile.wc-player-card--identity-meta {
+  min-width: 118px;
+  max-width: 132px;
+}
+
+.wc-player-card--mobile.wc-player-card--identity-meta .wc-player-card__meta {
+  align-items: center;
+  gap: 1px;
+  width: 100%;
+}
+
+.wc-player-card--mobile.wc-player-card--identity-meta .wc-player-card__meta > div {
+  max-width: 100%;
+}
+
 .wc-player-card--mobile .wc-seat-badge {
   font-size: 9px;
   padding: 1px 4px;
@@ -2268,6 +2363,10 @@ input[type="submit"]:not(:disabled),
 /* Hide meta text in mobile compact mode */
 .wc-player-card--mobile .wc-player-card__meta span:not(.wc-seat-badge) {
   display: none;
+}
+
+.wc-player-card--mobile.wc-player-card--identity-meta .wc-player-card__meta span:not(.wc-seat-badge) {
+  display: inline;
 }
 
 /* Mobile player card badges - smaller and repositioned */

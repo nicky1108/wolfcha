@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateRequest, requireCredits } from "@/lib/api-auth";
 import type { IncomingHttpHeaders } from "node:http";
+import { createHash } from "node:crypto";
 import * as https from "node:https";
 import { URL } from "node:url";
 import * as zlib from "node:zlib";
 import { DEFAULT_VOICE_ID } from "@/lib/voice-constants";
+import { dbQuery } from "@/lib/db";
+import { makeSafeRecordingObjectKey } from "@/lib/game-recording-normalizer";
+import type { TtsRecordingMetadata } from "@/lib/game-recording-types";
+import { getOssUploadConfig, putBufferToOss } from "@/lib/oss-upload";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,6 +21,8 @@ const asRecord = (value: unknown): Record<string, unknown> | null => {
 
 const DEFAULT_TTS_SPEECH_RATE = 1.2;
 
+const isGuestUserId = (userId: string) => userId.startsWith("guest_");
+
 const resolveTtsSpeechRate = () => {
   const raw = process.env.MINIMAX_TTS_SPEED;
   if (!raw) return DEFAULT_TTS_SPEECH_RATE;
@@ -24,6 +31,228 @@ const resolveTtsSpeechRate = () => {
   if (!Number.isFinite(parsed)) return DEFAULT_TTS_SPEECH_RATE;
   return Math.min(2, Math.max(0.5, parsed));
 };
+
+function asString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function asFiniteInteger(value: unknown): number | undefined {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return undefined;
+  return Math.floor(parsed);
+}
+
+function parseRecordingMetadata(parsed: Record<string, unknown>): TtsRecordingMetadata | null {
+  const recordingId = asString(parsed.recordingId);
+  const taskId = asString(parsed.taskId);
+  if (!recordingId || !taskId) return null;
+  return {
+    recordingId,
+    taskId,
+    messageId: asString(parsed.messageId),
+    playerId: asString(parsed.playerId),
+    day: asFiniteInteger(parsed.day),
+    phase: asString(parsed.phase),
+    segmentIndex: asFiniteInteger(parsed.segmentIndex),
+  };
+}
+
+function getAudioExtension(mime: string): string {
+  if (mime === "audio/wav") return "wav";
+  if (mime === "audio/ogg") return "ogg";
+  return "mp3";
+}
+
+async function upsertRecordingAsset(input: {
+  userId: string;
+  metadata: TtsRecordingMetadata;
+  voiceId: string;
+  text: string;
+  mimeType: string | null;
+  bytes: number;
+  ossKey: string | null;
+  publicUrl: string | null;
+  uploadStatus: "uploaded" | "failed" | "skipped";
+  errorMessage?: string | null;
+}): Promise<{ assetId: string | null; skippedOwner: boolean }> {
+  const textHash = createHash("sha256").update(input.text).digest("hex");
+  const result = await dbQuery<{ id: string }>(
+    `
+      with owner as (
+        select id
+        from game_recordings
+        where id = $1 and user_id = $2
+        limit 1
+      ),
+      matched_event as (
+        select id
+        from game_recording_events
+        where recording_id = $1
+          and (
+            ($3::text is not null and task_id = $3)
+            or ($4::text is not null and message_id = $4)
+          )
+        order by seq desc
+        limit 1
+      )
+      insert into game_recording_assets (
+        recording_id,
+        event_id,
+        task_id,
+        provider,
+        voice_id,
+        text_hash,
+        oss_key,
+        public_url,
+        mime_type,
+        bytes,
+        upload_status,
+        error_message,
+        updated_at
+      )
+      select
+        owner.id,
+        matched_event.id,
+        $3,
+        'minimax',
+        $5,
+        $6,
+        $7,
+        $8,
+        $9,
+        $10,
+        $11,
+        $12,
+        now()
+      from owner
+      left join matched_event on true
+      on conflict (recording_id, task_id) do update
+        set
+          event_id = coalesce(excluded.event_id, game_recording_assets.event_id),
+          voice_id = excluded.voice_id,
+          text_hash = excluded.text_hash,
+          oss_key = excluded.oss_key,
+          public_url = excluded.public_url,
+          mime_type = excluded.mime_type,
+          bytes = excluded.bytes,
+          upload_status = excluded.upload_status,
+          error_message = excluded.error_message,
+          updated_at = now()
+      returning id
+    `,
+    [
+      input.metadata.recordingId,
+      input.userId,
+      input.metadata.taskId,
+      input.metadata.messageId || null,
+      input.voiceId,
+      textHash,
+      input.ossKey,
+      input.publicUrl,
+      input.mimeType,
+      input.bytes,
+      input.uploadStatus,
+      input.errorMessage || null,
+    ]
+  );
+
+  return { assetId: result.rows[0]?.id ?? null, skippedOwner: result.rows.length === 0 };
+}
+
+async function persistRecordingAudio(input: {
+  userId: string;
+  metadata: TtsRecordingMetadata | null;
+  buffer: Buffer;
+  mimeType: string;
+  voiceId: string;
+  text: string;
+}): Promise<Record<string, string>> {
+  const recordingId = input.metadata?.recordingId;
+  const taskId = input.metadata?.taskId;
+  if (!input.metadata || !recordingId || !taskId || isGuestUserId(input.userId)) return {};
+
+  const config = getOssUploadConfig();
+  if (!config) {
+    const skipped = await upsertRecordingAsset({
+      userId: input.userId,
+      metadata: input.metadata,
+      voiceId: input.voiceId,
+      text: input.text,
+      mimeType: input.mimeType,
+      bytes: input.buffer.length,
+      ossKey: null,
+      publicUrl: null,
+      uploadStatus: "skipped",
+      errorMessage: "OSS upload is not configured",
+    }).catch((error) => {
+      console.error("[recording-tts] Failed to mark skipped asset", error);
+      return { assetId: null, skippedOwner: true };
+    });
+    return skipped.assetId
+      ? {
+          "X-Wolfcha-Recording-Asset-Id": skipped.assetId,
+          "X-Wolfcha-Audio-Upload-Status": "skipped",
+        }
+      : {};
+  }
+
+  const key = makeSafeRecordingObjectKey({
+    prefix: config.prefix,
+    userId: input.userId,
+    recordingId,
+    taskId,
+    extension: getAudioExtension(input.mimeType),
+  });
+
+  try {
+    const uploaded = await putBufferToOss({
+      config,
+      key,
+      body: input.buffer,
+      contentType: input.mimeType,
+    });
+    const asset = await upsertRecordingAsset({
+      userId: input.userId,
+      metadata: input.metadata,
+      voiceId: input.voiceId,
+      text: input.text,
+      mimeType: input.mimeType,
+      bytes: input.buffer.length,
+      ossKey: uploaded.key,
+      publicUrl: uploaded.publicUrl,
+      uploadStatus: "uploaded",
+    });
+    if (asset.skippedOwner) return {};
+    return {
+      ...(asset.assetId ? { "X-Wolfcha-Recording-Asset-Id": asset.assetId } : {}),
+      "X-Wolfcha-Audio-Url": uploaded.publicUrl,
+      "X-Wolfcha-Audio-Upload-Status": "uploaded",
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "OSS upload failed";
+    console.error("[recording-tts] OSS upload failed", {
+      recordingId: input.metadata.recordingId,
+      taskId: input.metadata.taskId,
+      error: message,
+    });
+    const asset = await upsertRecordingAsset({
+      userId: input.userId,
+      metadata: input.metadata,
+      voiceId: input.voiceId,
+      text: input.text,
+      mimeType: input.mimeType,
+      bytes: input.buffer.length,
+      ossKey: key,
+      publicUrl: null,
+      uploadStatus: "failed",
+      errorMessage: message.slice(0, 500),
+    }).catch(() => ({ assetId: null, skippedOwner: false }));
+    return {
+      ...(asset.assetId ? { "X-Wolfcha-Recording-Asset-Id": asset.assetId } : {}),
+      "X-Wolfcha-Audio-Upload-Status": "failed",
+    };
+  }
+}
 
 export async function POST(req: NextRequest) {
   const auth = await authenticateRequest(req as unknown as Request);
@@ -42,6 +271,7 @@ export async function POST(req: NextRequest) {
     const parsed = asRecord(parsedRaw) ?? {};
     const text = typeof parsed?.text === "string" ? parsed.text : String(parsed?.text ?? "");
     const voiceId = typeof parsed?.voiceId === "string" ? parsed.voiceId : String(parsed?.voiceId ?? "");
+    const recordingMetadata = parseRecordingMetadata(parsed);
 
     const normText = text.trim();
     const normVoiceId = voiceId.trim();
@@ -215,7 +445,7 @@ export async function POST(req: NextRequest) {
       return { mime: null, reason: "unknown_format" };
     };
 
-    const respondAudio = (b: Buffer, extraHeaders?: Record<string, string>) => {
+    const respondAudio = async (b: Buffer, extraHeaders?: Record<string, string>) => {
       const sniff = sniffAudioMime(b);
       if (!sniff.mime) {
         const preview = b.slice(0, 400).toString("utf8");
@@ -230,10 +460,20 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      const recordingHeaders = await persistRecordingAudio({
+        userId: auth.user.id,
+        metadata: recordingMetadata,
+        buffer: b,
+        mimeType: sniff.mime,
+        voiceId: extraHeaders?.["X-Minimax-Voice-Id-Used"] || normVoiceId,
+        text: normText,
+      });
+
       return new NextResponse(bufferToArrayBuffer(b), {
         headers: {
           "Content-Type": sniff.mime,
           "Content-Length": b.length.toString(),
+          ...recordingHeaders,
           ...(extraHeaders ?? {}),
         },
       });

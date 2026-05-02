@@ -24,11 +24,13 @@ export interface CustomCharacterData {
 
 export interface StartGameOptions {
   fixedRoles?: Role[];
+  fixedModelRefs?: ModelRef[];
   devPreset?: DevPreset;
   difficulty?: DifficultyLevel;
   playerCount?: number;
   isGenshinMode?: boolean;
   isSpectatorMode?: boolean;
+  enableAiVoice?: boolean;
   customCharacters?: CustomCharacterData[];
   preferredRole?: Role;
 }
@@ -260,13 +262,17 @@ export const MODEL_IDS = {
   },
   tokendance: {
     gpt55: "gpt-5.5",
+    claudeOpus47: "claude-opus-4.7",
+    deepseekV4Pro: "deepseek-v4-pro",
     gpt54: "gpt-5.4",
     gpt54Mini: "gpt-5.4-mini",
+    gemini31ProPreview: "gemini-3.1-pro-preview",
     gemini25FlashLite: "gemini-2.5-flash-lite",
     minimaxM27Highspeed: "MiniMax-M2.7-highspeed",
     minimaxM25Highspeed: "MiniMax-M2.5-highspeed",
     glm5: "glm-5",
     kimiK25: "kimi-k2.5",
+    kimiK26: "kimi-k2.6",
     qwen36Plus: "qwen3.6-plus",
     qwen35Plus: "qwen3.5-plus",
   },
@@ -305,6 +311,17 @@ export const BUILTIN_PLAYER_MODELS: ModelRef[] = [
   { provider: "tokendance", model: MODEL_IDS.tokendance.qwen35Plus },
 ];
 
+export const GODS_BATTLE_MODELS: ModelRef[] = [
+  { provider: "tokendance", model: MODEL_IDS.tokendance.gpt55 },
+  { provider: "tokendance", model: MODEL_IDS.tokendance.claudeOpus47 },
+  { provider: "tokendance", model: MODEL_IDS.tokendance.deepseekV4Pro },
+  { provider: "tokendance", model: MODEL_IDS.tokendance.qwen36Plus },
+  { provider: "tokendance", model: MODEL_IDS.tokendance.minimaxM27Highspeed, temperature: 1 },
+  { provider: "tokendance", model: MODEL_IDS.tokendance.gemini31ProPreview },
+  { provider: "tokendance", model: MODEL_IDS.tokendance.glm5, temperature: 1 },
+  { provider: "tokendance", model: MODEL_IDS.tokendance.kimiK26 },
+];
+
 // Default built-in models exposed to the app when custom key is not enabled.
 // This list includes system defaults plus the small built-in player pool.
 export const AVAILABLE_MODELS: ModelRef[] = [
@@ -323,6 +340,7 @@ export const AVAILABLE_MODELS: ModelRef[] = [
 // These are intentionally not exposed in the custom-key model selector.
 export const PROJECT_MODELS: ModelRef[] = [
   ...AVAILABLE_MODELS,
+  ...GODS_BATTLE_MODELS,
   // Legacy system models kept available for older persisted settings.
   { provider: "zenmux", model: MODEL_IDS.zenmux.geminiFlashLite },
   { provider: "zenmux", model: MODEL_IDS.zenmux.geminiFlashPreview },

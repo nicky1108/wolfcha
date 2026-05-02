@@ -4,7 +4,7 @@
  */
 
 import { useEffect, useCallback } from "react";
-import { useAtom, useAtomValue, useSetAtom } from "jotai";
+import { useAtom, useAtomValue } from "jotai";
 import {
   gameStateAtom,
   gameAnalysisAtom,
@@ -14,6 +14,7 @@ import {
 import { generateGameAnalysis } from "@/lib/game-analysis";
 import { gameStatsTracker } from "@/hooks/useGameStats";
 import { getReviewModel } from "@/lib/api-keys";
+import { gameRecordingTracker } from "@/lib/game-recording-tracker";
 
 export function useGameAnalysis() {
   const gameState = useAtomValue(gameStateAtom);
@@ -45,6 +46,7 @@ export function useGameAnalysis() {
       const reviewModel = getReviewModel();
       const data = await generateGameAnalysis(gameState, reviewModel, durationSeconds);
       setAnalysisData(data);
+      gameRecordingTracker.saveAnalysis(data);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "分析生成失败";
       setError(errorMessage);

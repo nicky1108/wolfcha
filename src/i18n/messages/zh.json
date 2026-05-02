@@ -111,6 +111,24 @@
       "mailSubject": "Wolfcha 赞助合作",
       "mailBody": "你好，我对 Wolfcha 项目很感兴趣，希望能够提供以下支持：\n\n-（模型额度/算力）\n-（语音/音效资源）\n-（设计/产品协作）\n-（其他）\n\n我的联系方式：\n\n"
     },
+    "godsBattle": {
+      "button": "众神之战",
+      "badge": "模型巅峰局",
+      "confirmTitle": "开启众神之战？",
+      "confirmDescription": "你将观看全球最顶尖模型的 8 人混战。",
+      "confirmDetails": "该模式固定 8 个顶级模型随机入座，角色随机，默认开启大模型原神模式、纯斗蛐蛐模式与角色语音。一局将消耗 {count} 点局数。",
+      "confirmAction": "消耗 4 点开战",
+      "toasts": {
+        "creditFail": {
+          "title": "众神之战开启失败",
+          "description": "额度不足或扣费失败，请充值后再开启。"
+        }
+      }
+    },
+    "recordings": {
+      "button": "历史精彩对局",
+      "tooltip": "查看历史已录制对局"
+    },
     "settings": "设置",
     "tutorial": "玩法教学",
     "subtitle": "The Shadow Game",
@@ -605,6 +623,67 @@
       }
     }
   },
+  "recordings": {
+    "loading": "正在加载对局回放...",
+    "empty": "暂无可回放的正式对局",
+    "fields": {
+      "startedAt": "开始时间",
+      "playerCount": "人数",
+      "winner": "胜方",
+      "status": "状态",
+      "events": "事件",
+      "audio": "语音",
+      "analysisReport": "复盘报告",
+      "analysisPending": "复盘报告生成中或暂无",
+      "day": "第 {day} 天"
+    },
+    "winners": {
+      "wolf": "狼人",
+      "villager": "好人"
+    },
+    "status": {
+      "recording": "录制中",
+      "completed": "已完成",
+      "abandoned": "未完成"
+    },
+    "events": {
+      "speech": "玩家发言",
+      "phase": "阶段变化",
+      "system": "系统播报",
+      "vote": "投票事件",
+      "death": "出局事件",
+      "snapshot": "状态快照",
+      "game_end": "游戏结束"
+    },
+    "detail": {
+      "back": "返回首页",
+      "title": "对局回放",
+      "liveTitle": "现场回放",
+      "players": "玩家快照",
+      "timeline": "时间线",
+      "seatSuffix": "号",
+      "unknownSpeaker": "未知玩家"
+    },
+    "replay": {
+      "play": "播放",
+      "pause": "暂停",
+      "prev": "上一段",
+      "next": "下一段",
+      "progress": "回放进度",
+      "alive": "存活 {alive}/{total}",
+      "waiting": "等待对局事件",
+      "audioReady": "原局语音"
+    },
+    "list": {
+      "title": "历史精彩对局",
+      "description": "查看所有已录制的正式对局，进入后可回放文字与语音。",
+      "summary": "共 {total} 场已录制对局",
+      "summaryEmpty": "登录后可查看你的历史已录制对局",
+      "signInRequired": "请先登录后查看历史对局",
+      "prev": "上一页",
+      "next": "下一页"
+    }
+  },
   "sharePanel": {
     "title": "分享链接",
     "description": "分享链接给朋友一起玩。",
@@ -664,7 +743,9 @@
     "wolfTeam": "狼队",
     "badgeHolder": "警长",
     "badgeCandidate": "竞选",
-    "joining": "正在入场"
+    "joining": "正在入场",
+    "roleLabel": "身份",
+    "modelLabel": "模型"
   },
   "voteResult": {
     "seatLabel": "{seat}号",
@@ -2122,7 +2203,8 @@
     "tabs": {
       "profile": "信息",
       "custom": "用我自己的 key 玩",
-      "payAsYouGo": "充值兑换"
+      "payAsYouGo": "充值兑换",
+      "recordings": "对局回放"
     },
     "payAsYouGo": {
       "title": "购买游戏额度",

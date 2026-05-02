@@ -111,6 +111,24 @@
       "mailSubject": "Wolfcha sponsorship inquiry",
       "mailBody": "Hi, I'm interested in supporting Wolfcha and would like to offer help in the following ways:\n\n- (Model credits / compute)\n- (Voice / SFX assets)\n- (Design / product collaboration)\n- (Other)\n\nMy contact info:\n\n"
     },
+    "godsBattle": {
+      "button": "Battle of Gods",
+      "badge": "Elite model arena",
+      "confirmTitle": "Start Battle of Gods?",
+      "confirmDescription": "Watch an 8-player showdown between the world's strongest models.",
+      "confirmDetails": "This mode assigns 8 elite models to random seats with random roles, then enables model-avatar mode, spectator mode, and character voice by default. One match costs {count} credits.",
+      "confirmAction": "Spend 4 credits",
+      "toasts": {
+        "creditFail": {
+          "title": "Could not start Battle of Gods",
+          "description": "Insufficient credits or charge failed. Recharge before starting this mode."
+        }
+      }
+    },
+    "recordings": {
+      "button": "Replay History",
+      "tooltip": "View recorded game history"
+    },
     "settings": "Settings",
     "tutorial": "How to play",
     "subtitle": "The Shadow Game",
@@ -591,6 +609,67 @@
     }
   }
   ,
+  "recordings": {
+    "loading": "Loading game replays...",
+    "empty": "No formal game replays yet",
+    "fields": {
+      "startedAt": "Started",
+      "playerCount": "Players",
+      "winner": "Winner",
+      "status": "Status",
+      "events": "Events",
+      "audio": "Audio",
+      "analysisReport": "Analysis report",
+      "analysisPending": "Analysis report pending or unavailable",
+      "day": "Day {day}"
+    },
+    "winners": {
+      "wolf": "Werewolves",
+      "villager": "Villagers"
+    },
+    "status": {
+      "recording": "Recording",
+      "completed": "Completed",
+      "abandoned": "Unfinished"
+    },
+    "events": {
+      "speech": "Player speech",
+      "phase": "Phase changed",
+      "system": "System announcement",
+      "vote": "Vote event",
+      "death": "Death event",
+      "snapshot": "State snapshot",
+      "game_end": "Game ended"
+    },
+    "detail": {
+      "back": "Back home",
+      "title": "Game Replay",
+      "liveTitle": "Live Replay",
+      "players": "Player Snapshot",
+      "timeline": "Timeline",
+      "seatSuffix": "",
+      "unknownSpeaker": "Unknown player"
+    },
+    "replay": {
+      "play": "Play",
+      "pause": "Pause",
+      "prev": "Previous segment",
+      "next": "Next segment",
+      "progress": "Replay progress",
+      "alive": "Alive {alive}/{total}",
+      "waiting": "Waiting for recorded events",
+      "audioReady": "Original audio"
+    },
+    "list": {
+      "title": "Replay History",
+      "description": "Review recorded formal games, including speech text and saved audio.",
+      "summary": "{total} recorded games",
+      "summaryEmpty": "Sign in to view your recorded game history",
+      "signInRequired": "Please sign in to view replay history",
+      "prev": "Previous",
+      "next": "Next"
+    }
+  },
   "sharePanel": {
     "title": "Share link",
     "description": "Share this link with friends.",
@@ -653,7 +732,9 @@
     "wolfTeam": "Wolf team",
     "badgeHolder": "Sheriff",
     "badgeCandidate": "Candidate",
-    "joining": "Joining..."
+    "joining": "Joining...",
+    "roleLabel": "Role",
+    "modelLabel": "Model"
   }
   ,
   "voteResult": {
@@ -2040,7 +2121,8 @@
     "tabs": {
       "profile": "Profile",
       "custom": "Use my own key",
-      "payAsYouGo": "Top Up"
+      "payAsYouGo": "Top Up",
+      "recordings": "Replays"
     },
     "payAsYouGo": {
       "title": "Buy Game Credits",

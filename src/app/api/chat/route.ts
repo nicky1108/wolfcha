@@ -35,6 +35,78 @@ function shouldDisableTokendanceThinking(model: string): boolean {
   return ["glm", "kimi", "minimax", "qwen"].some((token) => modelLower.includes(token));
 }
 
+function shouldOmitTokendanceTemperature(model: string): boolean {
+  const lower = model.toLowerCase();
+  return lower.includes("claude") || lower.includes("kimi") || lower.includes("moonshot");
+}
+
+function applyTemperature(
+  requestBody: Record<string, unknown>,
+  provider: Provider,
+  model: string,
+  temperature: number
+) {
+  if (provider === "tokendance" && shouldOmitTokendanceTemperature(model)) return;
+  requestBody.temperature = temperature;
+}
+
+function isTokendanceTemperatureError(status: number, details: unknown): boolean {
+  if (status !== 400) return false;
+  const text = typeof details === "string" ? details : JSON.stringify(details ?? "");
+  const lower = text.toLowerCase();
+  return lower.includes("temperature") && (
+    lower.includes("deprecated") ||
+    lower.includes("unsupported") ||
+    lower.includes("not support") ||
+    lower.includes("unrecognized") ||
+    lower.includes("invalid")
+  );
+}
+
+async function postTokendanceChat(
+  tokendanceUrl: string,
+  tokendanceApiKey: string,
+  requestBody: Record<string, unknown>
+): Promise<Response> {
+  const send = async (body: Record<string, unknown>) => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+    try {
+      return await fetch(tokendanceUrl, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${tokendanceApiKey}`,
+          "Content-Type": "application/json",
+          "X-App-Name": "Wolfcha",
+          "X-Site-URL": "https://wolf-cha.com",
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  };
+
+  const response = await send(requestBody);
+  if (!response.ok && "temperature" in requestBody) {
+    const errorText = await response.clone().text().catch(() => "");
+    let parsed: unknown = errorText;
+    try {
+      parsed = JSON.parse(errorText);
+    } catch {
+      // keep raw text
+    }
+    if (isTokendanceTemperatureError(response.status, parsed)) {
+      const retryBody = { ...requestBody };
+      delete retryBody.temperature;
+      return send(retryBody);
+    }
+  }
+
+  return response;
+}
+
 /** Resolve ModelRef for a model id; used to apply per-model temperature/reasoning overrides. */
 function getModelRef(model: string): (typeof PROJECT_MODELS)[number] | (typeof ALL_MODELS)[number] | undefined {
   return ALL_MODELS.find((ref) => ref.model === model) ?? PROJECT_MODELS.find((ref) => ref.model === model);
@@ -352,8 +424,8 @@ async function runBatchItem(
     const requestBody: Record<string, unknown> = {
       model,
       messages: processedMessages,
-      temperature: cappedTemperature,
     };
+    applyTemperature(requestBody, modelProvider, model, cappedTemperature);
 
     if (typeof max_tokens === "number" && Number.isFinite(max_tokens)) {
       requestBody.max_tokens = Math.max(16, Math.floor(max_tokens));
@@ -369,25 +441,7 @@ async function runBatchItem(
       requestBody.response_format = response_format;
     }
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
-
-    let response: Response;
-    try {
-      response = await fetch(tokendanceUrl, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${tokendanceApiKey}`,
-          "Content-Type": "application/json",
-          "X-App-Name": "Wolfcha",
-          "X-Site-URL": "https://wolf-cha.com",
-        },
-        body: JSON.stringify(requestBody),
-        signal: controller.signal,
-      });
-    } finally {
-      clearTimeout(timeoutId);
-    }
+    const response = await postTokendanceChat(tokendanceUrl, tokendanceApiKey, requestBody);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -701,8 +755,8 @@ export async function POST(request: NextRequest) {
       const requestBody: Record<string, unknown> = {
         model,
         messages: processedMessages,
-        temperature: cappedTemperature,
       };
+      applyTemperature(requestBody, modelProvider, model, cappedTemperature);
 
       if (typeof max_tokens === "number" && Number.isFinite(max_tokens)) {
         requestBody.max_tokens = Math.max(16, Math.floor(max_tokens));
@@ -722,25 +776,7 @@ export async function POST(request: NextRequest) {
         requestBody.response_format = response_format;
       }
 
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
-
-      let response: Response;
-      try {
-        response = await fetch(tokendanceUrl, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${tokendanceApiKey}`,
-            "Content-Type": "application/json",
-            "X-App-Name": "Wolfcha",
-            "X-Site-URL": "https://wolf-cha.com",
-          },
-          body: JSON.stringify(requestBody),
-          signal: controller.signal,
-        });
-      } finally {
-        clearTimeout(timeoutId);
-      }
+      const response = await postTokendanceChat(tokendanceUrl, tokendanceApiKey, requestBody);
 
       if (!response.ok) {
         const errorText = await response.text();

@@ -1,11 +1,18 @@
 import { getMinimaxApiKey, getMinimaxGroupId, isCustomKeyEnabled } from "@/lib/api-keys";
 import { getAuthHeaders } from "@/lib/auth-headers";
+import { gameRecordingTracker } from "@/lib/game-recording-tracker";
+import type { Phase } from "@/types/game";
 
 export interface AudioTask {
   id: string; // unique message id
   text: string;
   voiceId: string;
   playerId: string;
+  recordingId?: string;
+  messageId?: string;
+  day?: number;
+  phase?: Phase | string;
+  segmentIndex?: number;
 }
 
 export function makeAudioTaskId(voiceId: string, text: string) {
@@ -143,7 +150,11 @@ class AudioManager {
       response = await fetch("/api/tts", {
         method: "POST",
         headers,
-        body: JSON.stringify({ text: task.text, voiceId: task.voiceId }),
+        body: JSON.stringify({
+          text: task.text,
+          voiceId: task.voiceId,
+          ...this.getRecordingPayload(task),
+        }),
         signal: controller.signal,
       });
     } finally {
@@ -163,6 +174,20 @@ class AudioManager {
     } finally {
       URL.revokeObjectURL(url);
     }
+  }
+
+  private getRecordingPayload(task: AudioTask): Record<string, unknown> {
+    const recordingId = task.recordingId ?? gameRecordingTracker.getRecordingId();
+    if (!recordingId) return {};
+    return {
+      recordingId,
+      taskId: task.id,
+      messageId: task.messageId,
+      playerId: task.playerId,
+      day: task.day,
+      phase: task.phase,
+      segmentIndex: task.segmentIndex,
+    };
   }
 
   private async getDurationMs(objectUrl: string): Promise<number> {

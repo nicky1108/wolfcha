@@ -120,7 +120,7 @@ test("uses safe deterministic OSS object keys", () => {
 
 - [ ] **Step 2: Run tests and verify RED**
 
-Run: `npx tsx --test scripts/game-recording-normalizer.test.mjs`
+Run: `node --test scripts/game-recording-normalizer.test.mjs`
 
 Expected: failure because `src/lib/game-recording-normalizer.ts` does not exist.
 
@@ -130,7 +130,7 @@ Create `src/lib/game-recording-types.ts` with the shared type aliases, then crea
 
 - [ ] **Step 4: Verify GREEN**
 
-Run: `npx tsx --test scripts/game-recording-normalizer.test.mjs`
+Run: `node --test scripts/game-recording-normalizer.test.mjs`
 
 Expected: all tests pass.
 
@@ -249,7 +249,7 @@ Expected: no type errors.
 Run:
 
 ```bash
-npx tsx --test scripts/game-recording-normalizer.test.mjs
+node --test scripts/game-recording-normalizer.test.mjs
 node --test scripts/audio-prefetch.test.mjs
 pnpm exec tsc --noEmit
 git diff --check

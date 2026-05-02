@@ -54,6 +54,7 @@ import { PhaseManager } from "@/game/core/PhaseManager";
 import { supabase } from "@/lib/supabase";
 import { gameStatsTracker } from "@/hooks/useGameStats";
 import { gameSessionTracker } from "@/lib/game-session-tracker";
+import { gameRecordingTracker } from "@/lib/game-recording-tracker";
 import { isCustomKeyEnabled } from "@/lib/api-keys";
 import { isQuotaExhaustedMessage } from "@/lib/llm";
 import { aiLogger } from "@/lib/ai-logger";
@@ -81,6 +82,15 @@ function getRandomModelRef(): ModelRef {
   }
   const randomIndex = Math.floor(Math.random() * PLAYER_MODELS.length);
   return PLAYER_MODELS[randomIndex];
+}
+
+function shuffleModelRefs(modelRefs: ModelRef[]): ModelRef[] {
+  const shuffled = [...modelRefs];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
 }
 
 // Re-export for backward compatibility
@@ -1460,6 +1470,7 @@ export function useGameLogic() {
       isSpectatorMode = false,
       customCharacters = [],
       preferredRole,
+      fixedModelRefs,
     } = options ?? {};
 
     const totalPlayers = playerCount;
@@ -1479,25 +1490,25 @@ export function useGameLogic() {
     setIsLoading(true);
     try {
       // 初始化游戏统计追踪器
+      gameRecordingTracker.reset();
+      const usedCustomKey = isCustomKeyEnabled();
+      const generatorModel = getGeneratorModel();
       const statsConfig = {
         playerCount,
         difficulty,
-        usedCustomKey: isCustomKeyEnabled(),
+        usedCustomKey,
       };
       gameStatsTracker.start(statsConfig);
 
       // 创建游戏会话记录（前端调用服务端 API）
-      gameSessionTracker.start({
+      const sessionPromise = gameSessionTracker.start({
         playerCount,
         difficulty,
-        usedCustomKey: isCustomKeyEnabled(),
-        modelUsed: getGeneratorModel(),
-      }).then((sessionId) => {
-        if (sessionId) {
-          gameStatsTracker.setSessionId(sessionId);
-        }
+        usedCustomKey,
+        modelUsed: generatorModel,
       }).catch((err) => {
         console.error("[game-session] Failed to create:", err);
+        return null;
       });
 
       const systemMessages = getSystemMessages();
@@ -1520,7 +1531,11 @@ export function useGameLogic() {
         return shuffled;
       })();
 
-      const aiModelRefs = sampleModelRefs(isSpectatorMode ? totalPlayers : totalPlayers - 1);
+      const requestedAiModelCount = isSpectatorMode ? totalPlayers : totalPlayers - 1;
+      const aiModelRefs =
+        fixedModelRefs && fixedModelRefs.length >= requestedAiModelCount
+          ? shuffleModelRefs(fixedModelRefs).slice(0, requestedAiModelCount)
+          : sampleModelRefs(requestedAiModelCount);
       const initialPlayers: Player[] = Array.from({ length: totalPlayers }).map((_, seat) => {
         const isHuman = !isSpectatorMode && seat === humanSeat;
         const playerId = makeId();
@@ -1647,7 +1662,10 @@ export function useGameLogic() {
           }, delay);
         });
       } else if (isGenshinMode) {
-        genshinModelRefs = buildGenshinModelRefs(numAiPlayers);
+        genshinModelRefs =
+          fixedModelRefs && fixedModelRefs.length >= numAiPlayers
+            ? aiModelRefs
+            : buildGenshinModelRefs(numAiPlayers);
         characters = await generateGenshinModeCharacters(numAiPlayers, genshinModelRefs);
         
         // 为 Genshin 模式添加逐个出现的动画效果
@@ -1785,6 +1803,26 @@ export function useGameLogic() {
 
       setGameState(newState);
 
+      void sessionPromise.then((sessionId) => {
+        if (!sessionId) return;
+        gameStatsTracker.setSessionId(sessionId);
+        return gameRecordingTracker.start({
+          gameSessionId: sessionId,
+          state: newState,
+          playerCount,
+          difficulty,
+          usedCustomKey,
+          modeFlags: {
+            isGenshinMode,
+            isSpectatorMode,
+            devPreset: devPreset || null,
+            modelUsed: generatorModel,
+          },
+        });
+      }).catch((err) => {
+        console.error("[game-recording] Failed to start:", err);
+      });
+
       // In spectator mode, skip role reveal and start the game immediately
       if (isSpectatorMode) {
         pendingStartStateRef.current = null;
@@ -1858,6 +1896,7 @@ export function useGameLogic() {
 
     // Clear persisted game state from localStorage
     clearPersistedGameState();
+    gameRecordingTracker.reset();
     
     setGameState(createInitialGameState());
     resetDialogueState();
